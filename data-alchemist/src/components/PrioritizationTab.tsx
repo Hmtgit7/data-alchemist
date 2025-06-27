@@ -1,11 +1,9 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { Target, TrendingUp, BarChart3, Settings, Shuffle } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
@@ -52,7 +50,7 @@ const PrioritizationTab = () => {
     }
   ];
 
-  const presets = {
+  const presets: Record<string, { name: string; description: string; weights: Record<string, number> }> = {
     maximize_fulfillment: {
       name: 'Maximize Fulfillment',
       description: 'Focus on completing as many tasks as possible',
@@ -90,7 +88,7 @@ const PrioritizationTab = () => {
   };
 
   const randomizeWeights = () => {
-    const randomWeights = {};
+    const randomWeights: Record<string, number> = {};
     priorityItems.forEach(item => {
       randomWeights[item.key] = Math.floor(Math.random() * 5) + 1;
     });

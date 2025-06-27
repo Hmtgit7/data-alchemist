@@ -1,7 +1,5 @@
-
 import React, { useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +8,10 @@ import { Upload, FileSpreadsheet, Brain, CheckCircle, AlertCircle } from 'lucide
 import { useData } from '@/contexts/DataContext';
 import DataGrid from '@/components/DataGrid';
 import { useToast } from '@/hooks/use-toast';
+
+interface DataRow {
+  [key: string]: string | number | boolean;
+}
 
 const DataIngestionTab = () => {
   const [uploadStatus, setUploadStatus] = useState<Record<string, 'idle' | 'uploading' | 'success' | 'error'>>({
@@ -26,7 +28,7 @@ const DataIngestionTab = () => {
     const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
     const data = lines.slice(1).map(line => {
       const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
-      const row: Record<string, any> = {};
+      const row: DataRow = {};
       headers.forEach((header, index) => {
         row[header] = values[index] || '';
       });
@@ -46,32 +48,32 @@ const DataIngestionTab = () => {
       setTimeout(() => {
         if (type === 'clients') {
           setClients(data.map((row, index) => ({
-            ClientID: row.ClientID || row.ID || `C${index + 1}`,
-            ClientName: row.ClientName || row.Name || `Client ${index + 1}`,
-            PriorityLevel: parseInt(row.PriorityLevel || row.Priority || '3'),
-            RequestedTaskIDs: row.RequestedTaskIDs || row.Tasks || '',
-            GroupTag: row.GroupTag || row.Group || 'default',
-            AttributesJSON: row.AttributesJSON || row.Attributes || '{}'
+            ClientID: String(row.ClientID || row.ID || `C${index + 1}`),
+            ClientName: String(row.ClientName || row.Name || `Client ${index + 1}`),
+            PriorityLevel: parseInt(String(row.PriorityLevel || row.Priority || '3')),
+            RequestedTaskIDs: String(row.RequestedTaskIDs || row.Tasks || ''),
+            GroupTag: String(row.GroupTag || row.Group || 'default'),
+            AttributesJSON: String(row.AttributesJSON || row.Attributes || '{}')
           })));
         } else if (type === 'workers') {
           setWorkers(data.map((row, index) => ({
-            WorkerID: row.WorkerID || row.ID || `W${index + 1}`,
-            WorkerName: row.WorkerName || row.Name || `Worker ${index + 1}`,
-            Skills: row.Skills || row.Skill || '',
-            AvailableSlots: row.AvailableSlots || row.Slots || '[1,2,3]',
-            MaxLoadPerPhase: parseInt(row.MaxLoadPerPhase || row.MaxLoad || '5'),
-            WorkerGroup: row.WorkerGroup || row.Group || 'default',
-            QualificationLevel: row.QualificationLevel || row.Level || 'junior'
+            WorkerID: String(row.WorkerID || row.ID || `W${index + 1}`),
+            WorkerName: String(row.WorkerName || row.Name || `Worker ${index + 1}`),
+            Skills: String(row.Skills || row.Skill || ''),
+            AvailableSlots: String(row.AvailableSlots || row.Slots || '[1,2,3]'),
+            MaxLoadPerPhase: parseInt(String(row.MaxLoadPerPhase || row.MaxLoad || '5')),
+            WorkerGroup: String(row.WorkerGroup || row.Group || 'default'),
+            QualificationLevel: String(row.QualificationLevel || row.Level || 'junior')
           })));
         } else if (type === 'tasks') {
           setTasks(data.map((row, index) => ({
-            TaskID: row.TaskID || row.ID || `T${index + 1}`,
-            TaskName: row.TaskName || row.Name || `Task ${index + 1}`,
-            Category: row.Category || 'general',
-            Duration: parseInt(row.Duration || '1'),
-            RequiredSkills: row.RequiredSkills || row.Skills || '',
-            PreferredPhases: row.PreferredPhases || row.Phases || '[1,2]',
-            MaxConcurrent: parseInt(row.MaxConcurrent || '1')
+            TaskID: String(row.TaskID || row.ID || `T${index + 1}`),
+            TaskName: String(row.TaskName || row.Name || `Task ${index + 1}`),
+            Category: String(row.Category || 'general'),
+            Duration: parseInt(String(row.Duration || '1')),
+            RequiredSkills: String(row.RequiredSkills || row.Skills || ''),
+            PreferredPhases: String(row.PreferredPhases || row.Phases || '[1,2]'),
+            MaxConcurrent: parseInt(String(row.MaxConcurrent || '1'))
           })));
         }
         
@@ -82,7 +84,7 @@ const DataIngestionTab = () => {
         });
       }, 1500);
       
-    } catch (error) {
+    } catch {
       setUploadStatus(prev => ({ ...prev, [type]: 'error' }));
       toast({
         title: "Upload failed",
@@ -128,7 +130,7 @@ const DataIngestionTab = () => {
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) {
-                      handleFileUpload(file, type as any);
+                      handleFileUpload(file, type as 'clients' | 'workers' | 'tasks');
                     }
                   }}
                   className="bg-slate-700 border-slate-600 text-white file:bg-blue-600 file:text-white file:border-0"
@@ -165,15 +167,15 @@ const DataIngestionTab = () => {
             </TabsList>
             
             <TabsContent value="clients" className="mt-4">
-              <DataGrid data={clients} type="clients" />
+              <DataGrid data={clients as unknown as DataRow[]} type="clients" />
             </TabsContent>
             
             <TabsContent value="workers" className="mt-4">
-              <DataGrid data={workers} type="workers" />
+              <DataGrid data={workers as unknown as DataRow[]} type="workers" />
             </TabsContent>
             
             <TabsContent value="tasks" className="mt-4">
-              <DataGrid data={tasks} type="tasks" />
+              <DataGrid data={tasks as unknown as DataRow[]} type="tasks" />
             </TabsContent>
           </Tabs>
         </CardContent>

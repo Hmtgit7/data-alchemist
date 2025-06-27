@@ -1,7 +1,6 @@
-
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
-interface Client {
+export interface Client {
   ClientID: string;
   ClientName: string;
   PriorityLevel: number;
@@ -10,7 +9,7 @@ interface Client {
   AttributesJSON: string;
 }
 
-interface Worker {
+export interface Worker {
   WorkerID: string;
   WorkerName: string;
   Skills: string;
@@ -20,7 +19,7 @@ interface Worker {
   QualificationLevel: string;
 }
 
-interface Task {
+export interface Task {
   TaskID: string;
   TaskName: string;
   Category: string;
@@ -30,7 +29,11 @@ interface Task {
   MaxConcurrent: number;
 }
 
-interface ValidationError {
+export interface DataRow {
+  [key: string]: string | number | boolean;
+}
+
+export interface ValidationError {
   type: string;
   message: string;
   entity: string;
@@ -38,12 +41,12 @@ interface ValidationError {
   severity: 'error' | 'warning';
 }
 
-interface Rule {
+export interface Rule {
   id: string;
   type: string;
   name: string;
   description: string;
-  config: any;
+  config: Record<string, unknown>;
   active: boolean;
 }
 

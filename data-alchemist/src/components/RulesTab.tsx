@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,13 +11,26 @@ import { Plus, Trash2, Brain, Lightbulb, Settings } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { useToast } from '@/hooks/use-toast';
 
+interface RuleConfig {
+  [key: string]: string | number | string[] | number[] | undefined;
+}
+
+interface AiSuggestion {
+  type: string;
+  name: string;
+  description: string;
+  confidence: number;
+  rationale: string;
+  config?: RuleConfig;
+}
+
 const RulesTab = () => {
-  const { rules, addRule, removeRule, tasks, workers, clients } = useData();
+  const { rules, addRule, removeRule } = useData();
   const { toast } = useToast();
   const [selectedRuleType, setSelectedRuleType] = useState('');
-  const [ruleConfig, setRuleConfig] = useState<any>({});
+  const [ruleConfig, setRuleConfig] = useState<RuleConfig>({});
   const [naturalLanguageRule, setNaturalLanguageRule] = useState('');
-  const [aiSuggestions, setAiSuggestions] = useState<any[]>([]);
+  const [aiSuggestions, setAiSuggestions] = useState<AiSuggestion[]>([]);
 
   const ruleTypes = [
     { value: 'coRun', label: 'Co-Run Tasks', description: 'Tasks that must run together' },
@@ -30,7 +42,7 @@ const RulesTab = () => {
   ];
 
   const generateAiSuggestions = () => {
-    const suggestions = [
+    const suggestions: AiSuggestion[] = [
       {
         type: 'coRun',
         name: 'Related Tasks Co-execution',
@@ -59,7 +71,7 @@ const RulesTab = () => {
   const processNaturalLanguageRule = () => {
     const input = naturalLanguageRule.toLowerCase();
     let ruleType = '';
-    let config: any = {};
+    let config: RuleConfig = {};
 
     if (input.includes('together') || input.includes('same time')) {
       ruleType = 'coRun';
@@ -81,7 +93,7 @@ const RulesTab = () => {
       ruleType = 'phaseWindow';
       const phaseMatches = input.match(/phase[s]?\s*(\d+)/g);
       config = {
-        allowedPhases: phaseMatches ? phaseMatches.map(p => parseInt(p.match(/\d+/)[0])) : [1, 2],
+        allowedPhases: phaseMatches ? phaseMatches.map(p => parseInt(p.match(/\d+/)?.[0] || '1')) : [1, 2],
         taskId: 'all',
         name: 'Natural Language Phase Window'
       };
@@ -91,7 +103,7 @@ const RulesTab = () => {
       const newRule = {
         id: `rule-${Date.now()}`,
         type: ruleType,
-        name: config.name,
+        name: config.name as string,
         description: `Created from: "${naturalLanguageRule}"`,
         config,
         active: true
@@ -118,8 +130,8 @@ const RulesTab = () => {
     const newRule = {
       id: `rule-${Date.now()}`,
       type: selectedRuleType,
-      name: ruleConfig.name || `${selectedRuleType} Rule`,
-      description: ruleConfig.description || 'Manual rule configuration',
+      name: ruleConfig.name as string || `${selectedRuleType} Rule`,
+      description: ruleConfig.description as string || 'Manual rule configuration',
       config: ruleConfig,
       active: true
     };
@@ -133,7 +145,7 @@ const RulesTab = () => {
     });
   };
 
-  const acceptAiSuggestion = (suggestion: any) => {
+  const acceptAiSuggestion = (suggestion: AiSuggestion) => {
     const newRule = {
       id: `rule-${Date.now()}`,
       type: suggestion.type,
@@ -271,7 +283,7 @@ const RulesTab = () => {
                   <Label className="text-slate-300">Rule Name</Label>
                   <Input
                     placeholder="Enter rule name"
-                    value={ruleConfig.name || ''}
+                    value={String(ruleConfig.name || '')}
                     onChange={(e) => setRuleConfig({...ruleConfig, name: e.target.value})}
                     className="bg-slate-700 border-slate-600 text-white"
                   />
@@ -282,7 +294,7 @@ const RulesTab = () => {
                     <Label className="text-slate-300">Task IDs (comma separated)</Label>
                     <Input
                       placeholder="T1, T2, T3"
-                      value={ruleConfig.tasks?.join(', ') || ''}
+                      value={Array.isArray(ruleConfig.tasks) ? ruleConfig.tasks.join(', ') : ''}
                       onChange={(e) => setRuleConfig({
                         ...ruleConfig, 
                         tasks: e.target.value.split(',').map(t => t.trim())
@@ -293,24 +305,19 @@ const RulesTab = () => {
                 )}
 
                 {selectedRuleType === 'loadLimit' && (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-slate-300">Worker Group</Label>
+                      <Label htmlFor="workerGroup">Worker Group</Label>
                       <Input
-                        placeholder="senior, junior, etc."
-                        value={ruleConfig.workerGroup || ''}
-                        onChange={(e) => setRuleConfig({...ruleConfig, workerGroup: e.target.value})}
-                        className="bg-slate-700 border-slate-600 text-white"
+                        id="workerGroup"
+                        value={String(ruleConfig.workerGroup || '')}
                       />
                     </div>
                     <div>
-                      <Label className="text-slate-300">Max Slots</Label>
+                      <Label htmlFor="maxSlots">Max Slots</Label>
                       <Input
-                        type="number"
-                        placeholder="3"
-                        value={ruleConfig.maxSlots || ''}
-                        onChange={(e) => setRuleConfig({...ruleConfig, maxSlots: parseInt(e.target.value)})}
-                        className="bg-slate-700 border-slate-600 text-white"
+                        id="maxSlots"
+                        value={String(ruleConfig.maxSlots || '')}
                       />
                     </div>
                   </div>
@@ -348,7 +355,7 @@ const RulesTab = () => {
                         <Badge variant="secondary">{rule.type}</Badge>
                         <Switch
                           checked={rule.active}
-                          onCheckedChange={(checked) => {
+                          onCheckedChange={() => {
                             // Update rule active status
                           }}
                         />

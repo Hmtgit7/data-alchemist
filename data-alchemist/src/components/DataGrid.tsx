@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -7,9 +6,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Edit2, Save, X, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
+import { DataRow, Client, Worker, Task } from '../contexts/DataContext';
 
 interface DataGridProps {
-  data: any[];
+  data: DataRow[];
   type: 'clients' | 'workers' | 'tasks';
 }
 
@@ -24,14 +24,14 @@ const DataGrid: React.FC<DataGridProps> = ({ data, type }) => {
     return Object.keys(data[0]);
   };
 
-  const startEdit = (rowIndex: number, column: string, currentValue: any) => {
+  const startEdit = (rowIndex: number, column: string, currentValue: string | number | boolean) => {
     setEditingCell(`${rowIndex}-${column}`);
     setEditValue(String(currentValue));
   };
 
   const saveEdit = (rowIndex: number, column: string) => {
     const newData = [...data];
-    let processedValue: any = editValue;
+    let processedValue: string | number = editValue;
 
     // Type conversion based on column
     if (column.includes('Level') || column.includes('Duration') || column.includes('MaxLoad') || column.includes('MaxConcurrent')) {
@@ -40,9 +40,7 @@ const DataGrid: React.FC<DataGridProps> = ({ data, type }) => {
 
     newData[rowIndex] = { ...newData[rowIndex], [column]: processedValue };
 
-    if (type === 'clients') setClients(newData);
-    else if (type === 'workers') setWorkers(newData);
-    else if (type === 'tasks') setTasks(newData);
+    handleDataUpdate(newData, type);
 
     setEditingCell(null);
     setEditValue('');
@@ -55,13 +53,19 @@ const DataGrid: React.FC<DataGridProps> = ({ data, type }) => {
 
   const hasValidationError = (rowIndex: number, column: string) => {
     const value = data[rowIndex][column];
-    if (column === 'PriorityLevel' && (value < 1 || value > 5)) return true;
-    if (column === 'Duration' && value < 1) return true;
+    if (column === 'PriorityLevel' && (typeof value === 'number' && (value < 1 || value > 5))) return true;
+    if (column === 'Duration' && (typeof value === 'number' && value < 1)) return true;
     if (!value && column.includes('ID')) return true;
     return false;
   };
 
   const columns = getColumns();
+
+  const handleDataUpdate = (newData: DataRow[], type: string) => {
+    if (type === 'clients') setClients(newData as unknown as Client[]);
+    else if (type === 'workers') setWorkers(newData as unknown as Worker[]);
+    else if (type === 'tasks') setTasks(newData as unknown as Task[]);
+  };
 
   if (data.length === 0) {
     return (

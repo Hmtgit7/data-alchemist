@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,6 +6,10 @@ import { Progress } from '@/components/ui/progress';
 import { CheckCircle, Download, FileText, Package, AlertCircle } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { useToast } from '@/hooks/use-toast';
+
+interface DataRow {
+  [key: string]: string | number | boolean;
+}
 
 const ExportTab = () => {
   const { clients, workers, tasks, rules, priorities, validationErrors } = useData();
@@ -18,7 +21,7 @@ const ExportTab = () => {
   const totalRecords = clients.length + workers.length + tasks.length;
   const totalRules = rules.filter(r => r.active).length;
 
-  const convertToCSV = (data: any[], filename: string) => {
+  const convertToCSV = (data: DataRow[]) => {
     if (data.length === 0) return '';
     
     const headers = Object.keys(data[0]);
@@ -102,9 +105,9 @@ const ExportTab = () => {
       }
 
       // Generate and download files
-      const clientsCSV = convertToCSV(clients, 'clients_clean.csv');
-      const workersCSV = convertToCSV(workers, 'workers_clean.csv');
-      const tasksCSV = convertToCSV(tasks, 'tasks_clean.csv');
+      const clientsCSV = convertToCSV(clients as unknown as DataRow[]);
+      const workersCSV = convertToCSV(workers as unknown as DataRow[]);
+      const tasksCSV = convertToCSV(tasks as unknown as DataRow[]);
       const rulesJSON = generateRulesJSON();
 
       // Download individual files
@@ -118,7 +121,7 @@ const ExportTab = () => {
         description: "All files have been downloaded successfully.",
       });
 
-    } catch (error) {
+    } catch {
       toast({
         title: "Export failed",
         description: "An error occurred during export. Please try again.",
@@ -134,15 +137,15 @@ const ExportTab = () => {
     try {
       switch (type) {
         case 'clients':
-          const clientsCSV = convertToCSV(clients, 'clients_clean.csv');
+          const clientsCSV = convertToCSV(clients as unknown as DataRow[]);
           downloadFile(clientsCSV, 'clients_clean.csv');
           break;
         case 'workers':
-          const workersCSV = convertToCSV(workers, 'workers_clean.csv');
+          const workersCSV = convertToCSV(workers as unknown as DataRow[]);
           downloadFile(workersCSV, 'workers_clean.csv');
           break;
         case 'tasks':
-          const tasksCSV = convertToCSV(tasks, 'tasks_clean.csv');
+          const tasksCSV = convertToCSV(tasks as unknown as DataRow[]);
           downloadFile(tasksCSV, 'tasks_clean.csv');
           break;
         case 'rules':
@@ -155,7 +158,7 @@ const ExportTab = () => {
         title: "File exported",
         description: `${type} data has been downloaded.`,
       });
-    } catch (error) {
+    } catch {
       toast({
         title: "Export failed",
         description: "Failed to export file. Please try again.",

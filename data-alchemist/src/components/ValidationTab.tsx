@@ -1,24 +1,48 @@
-
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { AlertCircle, CheckCircle, Search, Brain, Zap, Wand2, AlertTriangle } from 'lucide-react';
+import { AlertCircle, CheckCircle, Search, Brain, Zap, Wand2 } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
+
+interface ValidationError {
+  type: string;
+  message: string;
+  entity: string;
+  field?: string;
+  severity: 'error' | 'warning';
+}
+
+interface SearchResult {
+  ClientID?: string;
+  WorkerID?: string;
+  TaskID?: string;
+  ClientName?: string;
+  WorkerName?: string;
+  TaskName?: string;
+  [key: string]: string | number | boolean | undefined;
+}
+
+interface AiSuggestion {
+  type: string;
+  message: string;
+  action: string;
+  data: Record<string, unknown>;
+}
 
 const ValidationTab = () => {
   const { clients, workers, tasks, validationErrors, setValidationErrors } = useData();
   const [isValidating, setIsValidating] = useState(false);
   const [naturalLanguageSearch, setNaturalLanguageSearch] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [aiSuggestions, setAiSuggestions] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [aiSuggestions, setAiSuggestions] = useState<AiSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  const runValidations = async () => {
+  const runValidations = useCallback(async () => {
     setIsValidating(true);
-    const errors: any[] = [];
+    const errors: ValidationError[] = [];
 
     // Core Validations
     
@@ -94,7 +118,7 @@ const ValidationTab = () => {
     });
 
     // 3. Out-of-range values
-    clients.forEach((client, index) => {
+    clients.forEach((client) => {
       if (client.PriorityLevel < 1 || client.PriorityLevel > 5) {
         errors.push({
           type: 'invalid_range',
@@ -139,7 +163,7 @@ const ValidationTab = () => {
     });
 
     // 6. Skill coverage validation
-    const allRequiredSkills = new Set();
+    const allRequiredSkills = new Set<string>();
     tasks.forEach(task => {
       if (task.RequiredSkills) {
         task.RequiredSkills.split(',').forEach(skill => {
@@ -148,7 +172,7 @@ const ValidationTab = () => {
       }
     });
 
-    const allWorkerSkills = new Set();
+    const allWorkerSkills = new Set<string>();
     workers.forEach(worker => {
       if (worker.Skills) {
         worker.Skills.split(',').forEach(skill => {
@@ -173,7 +197,7 @@ const ValidationTab = () => {
       if (client.AttributesJSON) {
         try {
           JSON.parse(client.AttributesJSON);
-        } catch (e) {
+        } catch {
           errors.push({
             type: 'invalid_json',
             message: 'Invalid JSON in AttributesJSON',
@@ -199,7 +223,7 @@ const ValidationTab = () => {
               severity: 'error'
             });
           }
-        } catch (e) {
+        } catch {
           errors.push({
             type: 'invalid_slots',
             message: 'Invalid JSON in AvailableSlots',
@@ -212,10 +236,10 @@ const ValidationTab = () => {
     });
 
     // Generate AI suggestions based on data patterns
-    const suggestions = [];
+    const suggestions: AiSuggestion[] = [];
     
     // Suggest co-run rules for frequently paired tasks
-    const taskPairs = new Map();
+    const taskPairs = new Map<string, number>();
     clients.forEach(client => {
       if (client.RequestedTaskIDs) {
         const tasks = client.RequestedTaskIDs.split(',').map(id => id.trim());
@@ -260,40 +284,35 @@ const ValidationTab = () => {
     
     setValidationErrors(errors);
     setIsValidating(false);
-  };
+  }, [clients, workers, tasks, setValidationErrors]);
 
   const handleNaturalLanguageSearch = () => {
     // Enhanced AI-powered natural language search
     const query = naturalLanguageSearch.toLowerCase();
-    let results: any[] = [];
+    let results: SearchResult[] = [];
 
     if (query.includes('duration') && query.includes('more than')) {
       const durationMatch = query.match(/more than (\d+)/);
       if (durationMatch) {
         const threshold = parseInt(durationMatch[1]);
-        results = tasks.filter(task => task.Duration > threshold);
+        results = tasks.filter(task => task.Duration > threshold) as unknown as SearchResult[];
       }
     } else if (query.includes('priority') && (query.includes('high') || query.includes('4') || query.includes('5'))) {
-      results = clients.filter(client => client.PriorityLevel >= 4);
+      results = clients.filter(client => client.PriorityLevel >= 4) as unknown as SearchResult[];
     } else if (query.includes('skills') && query.includes('javascript')) {
       results = workers.filter(worker => 
         worker.Skills && worker.Skills.toLowerCase().includes('javascript')
-      );
+      ) as unknown as SearchResult[];
     } else if (query.includes('available') && query.includes('phase')) {
       const phaseMatch = query.match(/phase (\d+)/);
       if (phaseMatch) {
-        const phase = parseInt(phaseMatch[1]);
         results = workers.filter(worker => {
           if (worker.AvailableSlots) {
-            try {
-              const slots = JSON.parse(worker.AvailableSlots);
-              return Array.isArray(slots) && slots.includes(phase);
-            } catch (e) {
-              return false;
-            }
+            const slots = parseInt(worker.AvailableSlots.toString());
+            return !isNaN(slots) && slots > 0;
           }
           return false;
-        });
+        }) as unknown as SearchResult[];
       }
     } else if (query.includes('errors') || query.includes('problems')) {
       // Return entities with validation errors
@@ -301,7 +320,7 @@ const ValidationTab = () => {
         ...clients.filter((_, index) => validationErrors.some(e => e.entity.includes(`Client`) || e.entity.includes(`row ${index + 1}`))),
         ...workers.filter((_, index) => validationErrors.some(e => e.entity.includes(`Worker`) || e.entity.includes(`row ${index + 1}`))),
         ...tasks.filter((_, index) => validationErrors.some(e => e.entity.includes(`Task`) || e.entity.includes(`row ${index + 1}`)))
-      ];
+      ] as unknown as SearchResult[];
     } else {
       // Generic search across all entities
       const searchTerm = query;
@@ -321,13 +340,13 @@ const ValidationTab = () => {
             String(v).toLowerCase().includes(searchTerm)
           )
         )
-      ];
+      ] as unknown as SearchResult[];
     }
 
     setSearchResults(results);
   };
 
-  const applyAiSuggestion = (suggestion: any) => {
+  const applyAiSuggestion = (suggestion: AiSuggestion) => {
     // This would integrate with the Rules tab to automatically create rules
     console.log('Applying AI suggestion:', suggestion);
   };
@@ -336,7 +355,7 @@ const ValidationTab = () => {
     if (clients.length > 0 || workers.length > 0 || tasks.length > 0) {
       runValidations();
     }
-  }, [clients, workers, tasks]);
+  }, [clients, workers, tasks, runValidations]);
 
   const errorsByType = validationErrors.reduce((acc, error) => {
     acc[error.type] = (acc[error.type] || 0) + 1;

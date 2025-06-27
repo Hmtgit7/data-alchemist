@@ -1,6 +1,5 @@
 "use client";
 import React, { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -15,14 +14,18 @@ import { DataProvider } from "@/contexts/DataContext";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 const Home = () => {
-  const [activeTab, setActiveTab] = useState("ingestion");
+  const [activeTab, setActiveTab] = useState<"ingestion" | "validation" | "rules" | "prioritization" | "export">("ingestion");
 
-  const progressSteps = {
+  const progressSteps: Record<"ingestion" | "validation" | "rules" | "prioritization" | "export", number> = {
     ingestion: 20,
     validation: 40,
     rules: 60,
     prioritization: 80,
     export: 100,
+  };
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value as "ingestion" | "validation" | "rules" | "prioritization" | "export");
   };
 
   const tabItems = [
@@ -66,7 +69,7 @@ const Home = () => {
 
         {/* Main Content */}
         <main className="container mx-auto px-4 sm:px-6 py-4 sm:py-8">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4 sm:space-y-6">
             {/* Mobile Tab Navigation */}
             <div className="sm:hidden">
               <Sheet>
@@ -87,7 +90,7 @@ const Home = () => {
                             ? "bg-blue-600 text-white"
                             : "text-slate-300 hover:text-white hover:bg-slate-800"
                         }`}
-                        onClick={() => setActiveTab(tab.value)}
+                        onClick={() => setActiveTab(tab.value as "ingestion" | "validation" | "rules" | "prioritization" | "export")}
                       >
                         <tab.icon className="h-4 w-4 mr-2" />
                         {tab.label}
@@ -105,6 +108,7 @@ const Home = () => {
                   key={tab.value}
                   value={tab.value}
                   className="data-[state=active]:bg-blue-600 data-[state=active]:text-white"
+                  onClick={() => setActiveTab(tab.value as "ingestion" | "validation" | "rules" | "prioritization" | "export")}
                 >
                   <tab.icon className="h-4 w-4 mr-2" />
                   <span className="hidden lg:inline">{tab.label}</span>
