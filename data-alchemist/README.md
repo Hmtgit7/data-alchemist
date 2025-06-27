@@ -15,12 +15,6 @@
 
 ---
 
-## 👨‍💻 **Developer**
-**Hemant Gehlod**  
-*Software Engineering Intern Candidate at Digitalyz*
-
----
-
 ## 🚀 **Live Demo**
 **🌐 [https://data-alchemist-6mco.vercel.app/](https://data-alchemist-6mco.vercel.app/)**
 
@@ -282,19 +276,9 @@ The application demonstrates advanced AI integration, comprehensive data process
 
 ---
 
-## 🤝 **Contact**
-
-**Hemant Gehlod**  
-*Software Engineering Intern Candidate*  
-**GitHub**: [@hmtgit7](https://github.com/hmtgit7)  
-**Project**: [Data Alchemist](https://github.com/hmtgit7/data-alchemist)  
-**Live Demo**: [https://data-alchemist-6mco.vercel.app/](https://data-alchemist-6mco.vercel.app/)
-
----
-
 <div align="center">
 
-**Built with ❤️ by Hemant Gehlod for Digitalyz**
+**Built for Digitalyz Software Engineering Intern Assignment**
 
 [![Next.js](https://img.shields.io/badge/Next.js-15.3.4-black?style=flat&logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19.0.0-blue?style=flat&logo=react)](https://reactjs.org/)
