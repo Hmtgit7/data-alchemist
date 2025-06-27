@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Data Alchemist Screenshot](public/image.png)
+![Data Alchemist Screenshot](data-alchemist/public/image.png)
 
 **AI-Powered Resource Allocation Configurator**  
 *Transform messy spreadsheets into clean, validated data ready for resource allocation systems*
@@ -43,7 +43,7 @@ This project was developed for the **Digitalyz Software Engineering Intern** pos
 
 ### **Core Functionality**
 - **Multi-format File Upload**: Support for both CSV and XLSX files
-- **AI-Powered Column Mapping**: Automatically maps incorrectly named headers to expected data structure
+- **AI-Powered Column Mapping**: Automatically maps incorrectly named headers
 - **Real-time Data Validation**: Comprehensive validation with immediate feedback
 - **Inline Data Editing**: Edit data directly in the grid with validation
 - **Business Rules Engine**: Create and manage complex business rules
@@ -71,28 +71,6 @@ This project was developed for the **Digitalyz Software Engineering Intern** pos
 
 ---
 
-## 📦 **Installation**
-
-1. Clone the repository:
-```bash
-git clone https://github.com/hmtgit7/data-alchemist.git
-cd data-alchemist
-```
-
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. Run the development server:
-```bash
-npm run dev
-```
-
-4. Open [http://localhost:3000](http://localhost:3000) in your browser.
-
----
-
 ## 📊 **Data Structure**
 
 The application expects three main data entities:
@@ -117,56 +95,42 @@ T001,Frontend Development,development,2,"javascript,react","[1,2]",3
 
 ---
 
-## 🔧 **Usage Guide**
+## 🔧 **Quick Start**
 
-### **1. Data Ingestion**
-- Upload your CSV or XLSX files for clients, workers, and tasks
-- The AI will automatically map columns even if they have different names
-- View and edit data in the interactive grid
-- Real-time validation provides immediate feedback
+### **Local Development**
+```bash
+# Clone the repository
+git clone https://github.com/hmtgit7/data-alchemist.git
+cd data-alchemist
 
-### **2. Validation**
-- Run comprehensive validations on your data
-- Use natural language search to find specific data
-- Get AI-powered suggestions for fixing errors
-- View detailed error reports with severity levels
+# Install dependencies
+npm install
 
-### **3. Rules Configuration**
-- Create business rules using natural language or manual configuration
-- Get AI recommendations for rules based on data patterns
-- Manage active rules with enable/disable functionality
-- Support for various rule types:
-  - Co-run tasks
-  - Load limits
-  - Phase windows
-  - Skill matching
-  - Precedence rules
+# Run development server
+npm run dev
 
-### **4. Prioritization**
-- Set weights for different allocation criteria
-- Use preset configurations or create custom priorities
-- Visualize priority distribution with charts
-- Real-time updates to priority calculations
+# Open http://localhost:3000
+```
 
-### **5. Export**
-- Download cleaned and validated data files
-- Export business rules configuration
-- Get comprehensive validation reports
-- Ready-to-use files for downstream allocation systems
+### **Build for Production**
+```bash
+npm run build
+npm start
+```
 
 ---
 
-## 🧠 **AI Features**
+## 🧠 **AI Features Demo**
 
 ### **Natural Language Search**
-Search your data using queries like:
+Try these queries in the Validation tab:
 - "All tasks with duration more than 2 phases"
 - "Workers with javascript skills"
 - "Clients with priority level 5"
 - "Tasks in phase 2"
 
 ### **AI Column Mapping**
-The system can handle various column naming conventions:
+The system handles various column naming conventions:
 - `ClientID`, `ID`, `client_id`, `Client ID`
 - `PriorityLevel`, `Priority`, `priority_level`, `Level`
 - `RequestedTaskIDs`, `Tasks`, `task_ids`, `Requested Tasks`
@@ -183,25 +147,30 @@ Get intelligent suggestions for:
 ## 📁 **Project Structure**
 
 ```
-src/
-├── app/                 # Next.js app directory
-├── components/          # React components
-│   ├── ui/             # Reusable UI components
-│   ├── DataGrid.tsx    # Interactive data grid
-│   ├── DataIngestionTab.tsx
-│   ├── ValidationTab.tsx
-│   ├── RulesTab.tsx
-│   ├── PrioritizationTab.tsx
-│   └── ExportTab.tsx
-├── contexts/           # React contexts
-│   └── DataContext.tsx # Main data state management
-├── hooks/              # Custom React hooks
-└── lib/                # Utility functions
+data-alchemist/
+├── src/
+│   ├── app/                 # Next.js app directory
+│   ├── components/          # React components
+│   │   ├── ui/             # Reusable UI components
+│   │   ├── DataGrid.tsx    # Interactive data grid
+│   │   ├── DataIngestionTab.tsx
+│   │   ├── ValidationTab.tsx
+│   │   ├── RulesTab.tsx
+│   │   ├── PrioritizationTab.tsx
+│   │   └── ExportTab.tsx
+│   ├── contexts/           # React contexts
+│   │   └── DataContext.tsx # Main data state management
+│   ├── hooks/              # Custom React hooks
+│   └── lib/                # Utility functions
+├── public/
+│   ├── samples/            # Sample data files
+│   └── image.png           # Application screenshot
+└── README.md               # Detailed documentation
 ```
 
 ---
 
-## 🎯 **Key Features for Assignment**
+## 🎯 **Assignment Milestones Completed**
 
 ### **Milestone 1: Data Ingestion & Validation ✅**
 - [x] CSV and XLSX file support
@@ -228,57 +197,40 @@ src/
 
 ---
 
-## 🚀 **Deployment**
+## 🎉 **X-Factor Features**
 
-The application is ready for deployment on platforms like:
-- Vercel (Current deployment)
-- Netlify
-- AWS Amplify
-- Any static hosting service
-
-Build for production:
-```bash
-npm run build
-npm start
-```
-
----
-
-## 📝 **Sample Data**
-
-Sample data files are included in the `public/samples/` directory:
-- `clients.csv` - Sample client data
-- `workers.csv` - Sample worker data  
-- `tasks.csv` - Sample task data
-
----
-
-## 🤝 **Contributing**
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
----
-
-## 📄 **License**
-
-This project is created for the **Digitalyz Software Engineering Intern** assignment.
-
----
-
-## 🎉 **Demo Features**
-
-### **X-Factor Features**
 1. **AI-Powered Column Mapping**: Automatically handles various column naming conventions
 2. **Natural Language Search**: Search data using plain English queries
 3. **AI Rule Recommendations**: Get intelligent suggestions for business rules
 4. **Real-time Validation**: Immediate feedback on data quality
 5. **Mobile-Responsive Design**: Works seamlessly on all devices
+6. **Advanced Error Handling**: Comprehensive validation with AI suggestions
 
-The application demonstrates advanced AI integration, comprehensive data processing capabilities, and a user-friendly interface designed for non-technical users.
+---
+
+## 📝 **Sample Data**
+
+Sample data files are included in the `data-alchemist/public/samples/` directory:
+- `clients.csv` - Sample client data
+- `workers.csv` - Sample worker data  
+- `tasks.csv` - Sample task data
+
+Additional sample data files are provided in the root directory:
+- `[V1] Data Alchemist - Sample Data.xlsx`
+- `[V2] Data Alchemist - Sample Data.xlsx`
+
+---
+
+## 🚀 **Deployment**
+
+The application is deployed on **Vercel** and is accessible at:
+**https://data-alchemist-6mco.vercel.app/**
+
+### **Deployment Platforms Supported**
+- Vercel (Current)
+- Netlify
+- AWS Amplify
+- Any static hosting service
 
 ---
 
@@ -292,6 +244,12 @@ The application demonstrates advanced AI integration, comprehensive data process
 
 ---
 
+## 📄 **License**
+
+This project is created for the **Digitalyz Software Engineering Intern** assignment.
+
+---
+
 <div align="center">
 
 **Built with ❤️ by Hemant Gehlod for Digitalyz**
@@ -300,4 +258,4 @@ The application demonstrates advanced AI integration, comprehensive data process
 [![React](https://img.shields.io/badge/React-19.0.0-blue?style=flat&logo=react)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat&logo=typescript)](https://www.typescriptlang.org/)
 
-</div>
+</div> 
