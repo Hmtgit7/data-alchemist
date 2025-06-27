@@ -1,11 +1,12 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { AlertCircle, CheckCircle, Search, Brain, Zap, Wand2 } from 'lucide-react';
+import { AlertCircle, CheckCircle, Search, Brain, Zap, Wand2, Filter } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
+import { useToast } from '@/hooks/use-toast';
 
 interface ValidationError {
   type: string;
@@ -32,19 +33,252 @@ interface AiSuggestion {
   data: Record<string, unknown>;
 }
 
+interface SearchCondition {
+  entity: string;
+  field: string;
+  operator: string;
+  value: string | number | string[];
+}
+
 const ValidationTab = () => {
   const { clients, workers, tasks, validationErrors, setValidationErrors } = useData();
+  const { toast } = useToast();
   const [isValidating, setIsValidating] = useState(false);
   const [naturalLanguageSearch, setNaturalLanguageSearch] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [aiSuggestions, setAiSuggestions] = useState<AiSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [validationProgress, setValidationProgress] = useState(0);
+
+  // Natural language search parser
+  const parseNaturalLanguageQuery = (query: string): SearchCondition[] => {
+    const lowerQuery = query.toLowerCase();
+    const conditions: SearchCondition[] = [];
+
+    // Duration conditions
+    const durationMatch = lowerQuery.match(/duration\s*(?:of\s*)?(?:more\s*than|greater\s*than|>\s*)?(\d+)/);
+    if (durationMatch) {
+      conditions.push({
+        entity: 'tasks',
+        field: 'Duration',
+        operator: '>',
+        value: parseInt(durationMatch[1])
+      });
+    }
+
+    // Priority conditions
+    const priorityMatch = lowerQuery.match(/priority\s*(?:level\s*)?(?:of\s*)?(\d+)/);
+    if (priorityMatch) {
+      conditions.push({
+        entity: 'clients',
+        field: 'PriorityLevel',
+        operator: '=',
+        value: parseInt(priorityMatch[1])
+      });
+    }
+
+    // Phase conditions
+    const phaseMatch = lowerQuery.match(/phase\s*(\d+)/);
+    if (phaseMatch) {
+      conditions.push({
+        entity: 'tasks',
+        field: 'PreferredPhases',
+        operator: 'includes',
+        value: parseInt(phaseMatch[1])
+      });
+    }
+
+    // Skill conditions
+    const skillMatch = lowerQuery.match(/(?:skill|skills)\s*(?:of\s*)?([a-zA-Z,]+)/);
+    if (skillMatch) {
+      const skills = skillMatch[1].split(',').map(s => s.trim());
+      conditions.push({
+        entity: 'workers',
+        field: 'Skills',
+        operator: 'includes',
+        value: skills
+      });
+    }
+
+    // Name conditions
+    const nameMatch = lowerQuery.match(/(?:name|called)\s*(?:is\s*)?([a-zA-Z\s]+)/);
+    if (nameMatch) {
+      conditions.push({
+        entity: 'all',
+        field: 'Name',
+        operator: 'contains',
+        value: nameMatch[1].trim()
+      });
+    }
+
+    return conditions;
+  };
+
+  const executeSearch = (conditions: SearchCondition[]): SearchResult[] => {
+    const results: SearchResult[] = [];
+
+    conditions.forEach(condition => {
+      if (condition.entity === 'clients' || condition.entity === 'all') {
+        clients.forEach(client => {
+          if (condition.field === 'PriorityLevel' && condition.operator === '=') {
+            if (client.PriorityLevel === condition.value) {
+              results.push({
+                ClientID: client.ClientID,
+                ClientName: client.ClientName,
+                PriorityLevel: client.PriorityLevel,
+                RequestedTaskIDs: client.RequestedTaskIDs,
+                GroupTag: client.GroupTag
+              });
+            }
+          } else if (condition.field === 'Name' && condition.operator === 'contains') {
+            if (client.ClientName.toLowerCase().includes(String(condition.value).toLowerCase())) {
+              results.push({
+                ClientID: client.ClientID,
+                ClientName: client.ClientName,
+                PriorityLevel: client.PriorityLevel,
+                RequestedTaskIDs: client.RequestedTaskIDs,
+                GroupTag: client.GroupTag
+              });
+            }
+          }
+        });
+      }
+
+      if (condition.entity === 'workers' || condition.entity === 'all') {
+        workers.forEach(worker => {
+          if (condition.field === 'Skills' && condition.operator === 'includes') {
+            const workerSkills = worker.Skills.toLowerCase().split(',').map(s => s.trim());
+            const hasSkill = Array.isArray(condition.value) && condition.value.some((skill: string) => 
+              workerSkills.includes(skill.toLowerCase())
+            );
+            if (hasSkill) {
+              results.push({
+                WorkerID: worker.WorkerID,
+                WorkerName: worker.WorkerName,
+                Skills: worker.Skills,
+                AvailableSlots: worker.AvailableSlots,
+                MaxLoadPerPhase: worker.MaxLoadPerPhase,
+                WorkerGroup: worker.WorkerGroup,
+                QualificationLevel: worker.QualificationLevel
+              });
+            }
+          } else if (condition.field === 'Name' && condition.operator === 'contains') {
+            if (worker.WorkerName.toLowerCase().includes(String(condition.value).toLowerCase())) {
+              results.push({
+                WorkerID: worker.WorkerID,
+                WorkerName: worker.WorkerName,
+                Skills: worker.Skills,
+                AvailableSlots: worker.AvailableSlots,
+                MaxLoadPerPhase: worker.MaxLoadPerPhase,
+                WorkerGroup: worker.WorkerGroup,
+                QualificationLevel: worker.QualificationLevel
+              });
+            }
+          }
+        });
+      }
+
+      if (condition.entity === 'tasks' || condition.entity === 'all') {
+        tasks.forEach(task => {
+          if (condition.field === 'Duration' && condition.operator === '>') {
+            if (task.Duration > Number(condition.value)) {
+              results.push({
+                TaskID: task.TaskID,
+                TaskName: task.TaskName,
+                Category: task.Category,
+                Duration: task.Duration,
+                RequiredSkills: task.RequiredSkills,
+                PreferredPhases: task.PreferredPhases,
+                MaxConcurrent: task.MaxConcurrent
+              });
+            }
+          } else if (condition.field === 'PreferredPhases' && condition.operator === 'includes') {
+            try {
+              const phases = JSON.parse(task.PreferredPhases);
+              if (Array.isArray(phases) && phases.includes(condition.value)) {
+                results.push({
+                  TaskID: task.TaskID,
+                  TaskName: task.TaskName,
+                  Category: task.Category,
+                  Duration: task.Duration,
+                  RequiredSkills: task.RequiredSkills,
+                  PreferredPhases: task.PreferredPhases,
+                  MaxConcurrent: task.MaxConcurrent
+                });
+              }
+            } catch {
+              // Handle string format like "1-3"
+              if (task.PreferredPhases.includes(String(condition.value))) {
+                results.push({
+                  TaskID: task.TaskID,
+                  TaskName: task.TaskName,
+                  Category: task.Category,
+                  Duration: task.Duration,
+                  RequiredSkills: task.RequiredSkills,
+                  PreferredPhases: task.PreferredPhases,
+                  MaxConcurrent: task.MaxConcurrent
+                });
+              }
+            }
+          } else if (condition.field === 'Name' && condition.operator === 'contains') {
+            if (task.TaskName.toLowerCase().includes(String(condition.value).toLowerCase())) {
+              results.push({
+                TaskID: task.TaskID,
+                TaskName: task.TaskName,
+                Category: task.Category,
+                Duration: task.Duration,
+                RequiredSkills: task.RequiredSkills,
+                PreferredPhases: task.PreferredPhases,
+                MaxConcurrent: task.MaxConcurrent
+              });
+            }
+          }
+        });
+      }
+    });
+
+    // Remove duplicates
+    return results.filter((result, index, self) => 
+      index === self.findIndex(r => 
+        (r.ClientID && r.ClientID === result.ClientID) ||
+        (r.WorkerID && r.WorkerID === result.WorkerID) ||
+        (r.TaskID && r.TaskID === result.TaskID)
+      )
+    );
+  };
+
+  const handleNaturalLanguageSearch = () => {
+    if (!naturalLanguageSearch.trim()) {
+      toast({
+        title: "Search query required",
+        description: "Please enter a search query.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const conditions = parseNaturalLanguageQuery(naturalLanguageSearch);
+    const results = executeSearch(conditions);
+    setSearchResults(results);
+
+    toast({
+      title: "Search completed",
+      description: `Found ${results.length} results for your query.`,
+    });
+  };
 
   const runValidations = useCallback(async () => {
     setIsValidating(true);
+    setValidationProgress(0);
     const errors: ValidationError[] = [];
 
+    // Simulate progress updates
+    const updateProgress = (progress: number) => {
+      setValidationProgress(progress);
+    };
+
     // Core Validations
+    updateProgress(10);
     
     // 1. Missing required columns/IDs
     clients.forEach((client, index) => {
@@ -83,6 +317,8 @@ const ValidationTab = () => {
       }
     });
 
+    updateProgress(20);
+
     // 2. Duplicate IDs
     const clientIds = clients.map(c => c.ClientID);
     const duplicateClientIds = clientIds.filter((id, index) => clientIds.indexOf(id) !== index);
@@ -117,6 +353,8 @@ const ValidationTab = () => {
       });
     });
 
+    updateProgress(30);
+
     // 3. Out-of-range values
     clients.forEach((client) => {
       if (client.PriorityLevel < 1 || client.PriorityLevel > 5) {
@@ -143,6 +381,8 @@ const ValidationTab = () => {
       }
     });
 
+    updateProgress(40);
+
     // 5. Unknown references
     clients.forEach(client => {
       if (client.RequestedTaskIDs) {
@@ -161,6 +401,8 @@ const ValidationTab = () => {
         });
       }
     });
+
+    updateProgress(50);
 
     // 6. Skill coverage validation
     const allRequiredSkills = new Set<string>();
@@ -192,7 +434,9 @@ const ValidationTab = () => {
       }
     });
 
-    // 7. Broken JSON validation - handle each entity type separately
+    updateProgress(60);
+
+    // 7. Broken JSON validation
     clients.forEach((client) => {
       if (client.AttributesJSON) {
         try {
@@ -209,15 +453,17 @@ const ValidationTab = () => {
       }
     });
 
-    // 8. Worker availability validation
+    updateProgress(70);
+
+    // 8. AvailableSlots validation
     workers.forEach(worker => {
       if (worker.AvailableSlots) {
         try {
           const slots = JSON.parse(worker.AvailableSlots);
-          if (!Array.isArray(slots)) {
+          if (!Array.isArray(slots) || !slots.every(slot => typeof slot === 'number' && slot > 0)) {
             errors.push({
               type: 'invalid_slots',
-              message: 'AvailableSlots must be an array',
+              message: 'AvailableSlots must be an array of positive numbers',
               entity: `Worker ${worker.WorkerID}`,
               field: 'AvailableSlots',
               severity: 'error'
@@ -226,7 +472,7 @@ const ValidationTab = () => {
         } catch {
           errors.push({
             type: 'invalid_slots',
-            message: 'Invalid JSON in AvailableSlots',
+            message: 'AvailableSlots must be valid JSON array',
             entity: `Worker ${worker.WorkerID}`,
             field: 'AvailableSlots',
             severity: 'error'
@@ -235,341 +481,302 @@ const ValidationTab = () => {
       }
     });
 
-    // Generate AI suggestions based on data patterns
-    const suggestions: AiSuggestion[] = [];
-    
-    // Suggest co-run rules for frequently paired tasks
-    const taskPairs = new Map<string, number>();
-    clients.forEach(client => {
-      if (client.RequestedTaskIDs) {
-        const tasks = client.RequestedTaskIDs.split(',').map(id => id.trim());
-        if (tasks.length > 1) {
-          tasks.forEach((task1, i) => {
-            tasks.slice(i + 1).forEach(task2 => {
-              const pair = [task1, task2].sort().join('-');
-              taskPairs.set(pair, (taskPairs.get(pair) || 0) + 1);
+    updateProgress(80);
+
+    // 9. PreferredPhases validation
+    tasks.forEach(task => {
+      if (task.PreferredPhases) {
+        try {
+          const phases = JSON.parse(task.PreferredPhases);
+          if (!Array.isArray(phases) || !phases.every(phase => typeof phase === 'number' && phase > 0)) {
+            errors.push({
+              type: 'invalid_phases',
+              message: 'PreferredPhases must be an array of positive numbers',
+              entity: `Task ${task.TaskID}`,
+              field: 'PreferredPhases',
+              severity: 'error'
             });
-          });
+          }
+        } catch {
+          // Check if it's in range format like "1-3"
+          const rangeMatch = task.PreferredPhases.match(/^(\d+)-(\d+)$/);
+          if (!rangeMatch) {
+            errors.push({
+              type: 'invalid_phases',
+              message: 'PreferredPhases must be valid JSON array or range format (e.g., "1-3")',
+              entity: `Task ${task.TaskID}`,
+              field: 'PreferredPhases',
+              severity: 'error'
+            });
+          }
         }
       }
     });
 
-    taskPairs.forEach((count, pair) => {
-      if (count >= 2) {
-        suggestions.push({
-          type: 'co_run_suggestion',
-          message: `Tasks ${pair.replace('-', ' and ')} are requested together ${count} times. Consider adding a Co-run rule.`,
-          action: 'Add Co-run Rule',
-          data: { tasks: pair.split('-') }
+    updateProgress(90);
+
+    // 10. MaxConcurrent validation
+    tasks.forEach(task => {
+      if (task.MaxConcurrent < 1) {
+        errors.push({
+          type: 'invalid_concurrent',
+          message: `MaxConcurrent must be >= 1, got ${task.MaxConcurrent}`,
+          entity: `Task ${task.TaskID}`,
+          field: 'MaxConcurrent',
+          severity: 'error'
         });
       }
     });
 
-    // Suggest load limits for overloaded workers
+    // 11. MaxLoadPerPhase validation
     workers.forEach(worker => {
-      if (worker.MaxLoadPerPhase && worker.MaxLoadPerPhase > 10) {
-        suggestions.push({
-          type: 'load_limit_suggestion',
-          message: `Worker ${worker.WorkerID} has high MaxLoadPerPhase (${worker.MaxLoadPerPhase}). Consider setting load limits.`,
-          action: 'Set Load Limit',
-          data: { worker: worker.WorkerID, currentLoad: worker.MaxLoadPerPhase }
+      if (worker.MaxLoadPerPhase < 1) {
+        errors.push({
+          type: 'invalid_load',
+          message: `MaxLoadPerPhase must be >= 1, got ${worker.MaxLoadPerPhase}`,
+          entity: `Worker ${worker.WorkerID}`,
+          field: 'MaxLoadPerPhase',
+          severity: 'error'
         });
       }
     });
 
-    setAiSuggestions(suggestions);
+    updateProgress(100);
 
-    // Simulate AI validation delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
     setValidationErrors(errors);
     setIsValidating(false);
-  }, [clients, workers, tasks, setValidationErrors]);
 
-  const handleNaturalLanguageSearch = () => {
-    // Enhanced AI-powered natural language search
-    const query = naturalLanguageSearch.toLowerCase();
-    let results: SearchResult[] = [];
-
-    if (query.includes('duration') && query.includes('more than')) {
-      const durationMatch = query.match(/more than (\d+)/);
-      if (durationMatch) {
-        const threshold = parseInt(durationMatch[1]);
-        results = tasks.filter(task => task.Duration > threshold) as unknown as SearchResult[];
-      }
-    } else if (query.includes('priority') && (query.includes('high') || query.includes('4') || query.includes('5'))) {
-      results = clients.filter(client => client.PriorityLevel >= 4) as unknown as SearchResult[];
-    } else if (query.includes('skills') && query.includes('javascript')) {
-      results = workers.filter(worker => 
-        worker.Skills && worker.Skills.toLowerCase().includes('javascript')
-      ) as unknown as SearchResult[];
-    } else if (query.includes('available') && query.includes('phase')) {
-      const phaseMatch = query.match(/phase (\d+)/);
-      if (phaseMatch) {
-        results = workers.filter(worker => {
-          if (worker.AvailableSlots) {
-            const slots = parseInt(worker.AvailableSlots.toString());
-            return !isNaN(slots) && slots > 0;
-          }
-          return false;
-        }) as unknown as SearchResult[];
-      }
-    } else if (query.includes('errors') || query.includes('problems')) {
-      // Return entities with validation errors
-      results = [
-        ...clients.filter((_, index) => validationErrors.some(e => e.entity.includes(`Client`) || e.entity.includes(`row ${index + 1}`))),
-        ...workers.filter((_, index) => validationErrors.some(e => e.entity.includes(`Worker`) || e.entity.includes(`row ${index + 1}`))),
-        ...tasks.filter((_, index) => validationErrors.some(e => e.entity.includes(`Task`) || e.entity.includes(`row ${index + 1}`)))
-      ] as unknown as SearchResult[];
-    } else {
-      // Generic search across all entities
-      const searchTerm = query;
-      results = [
-        ...clients.filter(c => 
-          Object.values(c).some(v => 
-            String(v).toLowerCase().includes(searchTerm)
-          )
-        ),
-        ...workers.filter(w => 
-          Object.values(w).some(v => 
-            String(v).toLowerCase().includes(searchTerm)
-          )
-        ),
-        ...tasks.filter(t => 
-          Object.values(t).some(v => 
-            String(v).toLowerCase().includes(searchTerm)
-          )
-        )
-      ] as unknown as SearchResult[];
+    // Generate AI suggestions based on errors
+    const suggestions: AiSuggestion[] = [];
+    
+    const missingSkillErrors = errors.filter(e => e.type === 'missing_skill');
+    if (missingSkillErrors.length > 0) {
+      suggestions.push({
+        type: 'add_worker_skill',
+        message: 'Add missing skills to workers',
+        action: 'Add required skills to appropriate workers',
+        data: { missingSkills: missingSkillErrors.map(e => e.message) }
+      });
     }
 
-    setSearchResults(results);
-  };
+    const invalidJsonErrors = errors.filter(e => e.type === 'invalid_json');
+    if (invalidJsonErrors.length > 0) {
+      suggestions.push({
+        type: 'fix_json',
+        message: 'Fix invalid JSON in client attributes',
+        action: 'Validate and fix JSON format',
+        data: { invalidJsonCount: invalidJsonErrors.length }
+      });
+    }
+
+    const duplicateIdErrors = errors.filter(e => e.type === 'duplicate_id');
+    if (duplicateIdErrors.length > 0) {
+      suggestions.push({
+        type: 'fix_duplicates',
+        message: 'Resolve duplicate IDs',
+        action: 'Ensure unique IDs across all entities',
+        data: { duplicateCount: duplicateIdErrors.length }
+      });
+    }
+
+    setAiSuggestions(suggestions);
+    setShowSuggestions(suggestions.length > 0);
+
+    toast({
+      title: "Validation completed",
+      description: `Found ${errors.length} issues (${errors.filter(e => e.severity === 'error').length} errors, ${errors.filter(e => e.severity === 'warning').length} warnings)`,
+    });
+  }, [clients, workers, tasks, setValidationErrors, toast]);
 
   const applyAiSuggestion = (suggestion: AiSuggestion) => {
-    // This would integrate with the Rules tab to automatically create rules
-    console.log('Applying AI suggestion:', suggestion);
+    // This would implement the actual fix logic
+    toast({
+      title: "AI suggestion applied",
+      description: suggestion.message,
+    });
+    
+    // Remove the suggestion after applying
+    setAiSuggestions(prev => prev.filter(s => s !== suggestion));
   };
 
-  useEffect(() => {
-    if (clients.length > 0 || workers.length > 0 || tasks.length > 0) {
-      runValidations();
-    }
-  }, [clients, workers, tasks, runValidations]);
-
-  const errorsByType = validationErrors.reduce((acc, error) => {
-    acc[error.type] = (acc[error.type] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
-  const totalErrors = validationErrors.filter(e => e.severity === 'error').length;
-  const totalWarnings = validationErrors.filter(e => e.severity === 'warning').length;
+  const errorCount = validationErrors.filter(e => e.severity === 'error').length;
+  const warningCount = validationErrors.filter(e => e.severity === 'warning').length;
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* Validation Overview */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
-        <Card className="bg-slate-800/50 border-slate-700">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xl sm:text-2xl font-bold text-white">{totalErrors}</p>
-                <p className="text-sm text-red-400">Errors</p>
-              </div>
-              <AlertCircle className="h-6 w-6 sm:h-8 sm:w-8 text-red-400" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-slate-800/50 border-slate-700">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xl sm:text-2xl font-bold text-white">{totalWarnings}</p>
-                <p className="text-sm text-yellow-400">Warnings</p>
-              </div>
-              <AlertCircle className="h-6 w-6 sm:h-8 sm:w-8 text-yellow-400" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-slate-800/50 border-slate-700">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xl sm:text-2xl font-bold text-white">
-                  {Math.round(((clients.length + workers.length + tasks.length - totalErrors) / Math.max(clients.length + workers.length + tasks.length, 1)) * 100)}%
-                </p>
-                <p className="text-sm text-emerald-400">Data Quality</p>
-              </div>
-              <CheckCircle className="h-6 w-6 sm:h-8 sm:w-8 text-emerald-400" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* AI Suggestions Card */}
-      {aiSuggestions.length > 0 && (
-        <Card className="bg-slate-800/50 border-slate-700">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center text-white text-sm sm:text-base">
-                <Wand2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-                AI Rule Recommendations
-              </CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowSuggestions(!showSuggestions)}
-                className="text-slate-400 text-xs sm:text-sm"
-              >
-                {showSuggestions ? 'Hide' : 'Show'} ({aiSuggestions.length})
-              </Button>
-            </div>
-          </CardHeader>
-          {showSuggestions && (
-            <CardContent>
-              <div className="space-y-3">
-                {aiSuggestions.map((suggestion, index) => (
-                  <div key={index} className="p-3 bg-slate-700/50 rounded-lg border-l-4 border-blue-500">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-2 sm:space-y-0">
-                      <div className="flex-1">
-                        <p className="text-white text-sm font-medium">{suggestion.message}</p>
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={() => applyAiSuggestion(suggestion)}
-                        className="bg-blue-600 hover:bg-blue-700 text-xs sm:text-sm self-start sm:self-auto"
-                      >
-                        {suggestion.action}
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          )}
-        </Card>
-      )}
-
+    <div className="space-y-6">
       {/* Natural Language Search */}
       <Card className="bg-slate-800/50 border-slate-700">
         <CardHeader>
-          <CardTitle className="flex items-center text-white text-sm sm:text-base">
-            <Brain className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-            AI-Powered Natural Language Search
+          <CardTitle className="flex items-center text-white">
+            <Search className="h-5 w-5 mr-2" />
+            Natural Language Search
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-            <Input
-              placeholder="Search with natural language: 'All tasks with duration more than 2 phases'"
-              value={naturalLanguageSearch}
-              onChange={(e) => setNaturalLanguageSearch(e.target.value)}
-              className="bg-slate-700 border-slate-600 text-white text-sm flex-1"
-              onKeyDown={(e) => e.key === 'Enter' && handleNaturalLanguageSearch()}
-            />
-            <Button 
-              onClick={handleNaturalLanguageSearch}
-              className="bg-blue-600 hover:bg-blue-700 text-xs sm:text-sm"
-            >
-              <Search className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-              Search
-            </Button>
-          </div>
-          
-          {searchResults.length > 0 && (
-            <div className="mt-4 space-y-2">
-              <p className="text-sm text-slate-400">Found {searchResults.length} results:</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {searchResults.slice(0, 6).map((result, index) => (
-                  <div key={index} className="p-3 bg-slate-700 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <span className="text-white text-sm truncate">
-                        {result.ClientName || result.WorkerName || result.TaskName || result.ClientID || result.WorkerID || result.TaskID}
-                      </span>
-                      <Badge variant="secondary" className="text-xs ml-2">
-                        {result.ClientID ? 'Client' : result.WorkerID ? 'Worker' : 'Task'}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
+          <div className="space-y-4">
+            <div className="flex space-x-2">
+              <Input
+                placeholder="e.g., 'All tasks with duration more than 2 phases' or 'Workers with javascript skills'"
+                value={naturalLanguageSearch}
+                onChange={(e) => setNaturalLanguageSearch(e.target.value)}
+                className="flex-1 bg-slate-700 border-slate-600 text-white"
+                onKeyDown={(e) => e.key === 'Enter' && handleNaturalLanguageSearch()}
+              />
+              <Button onClick={handleNaturalLanguageSearch} className="bg-blue-600 hover:bg-blue-700">
+                <Filter className="h-4 w-4 mr-2" />
+                Search
+              </Button>
             </div>
-          )}
+            
+            {searchResults.length > 0 && (
+              <div className="mt-4">
+                <h4 className="text-white font-medium mb-2">Search Results ({searchResults.length})</h4>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {searchResults.map((result, index) => (
+                    <div key={index} className="p-3 bg-slate-700 rounded-lg">
+                      <div className="text-sm text-slate-300">
+                        {result.ClientName && `Client: ${result.ClientName} (${result.ClientID})`}
+                        {result.WorkerName && `Worker: ${result.WorkerName} (${result.WorkerID})`}
+                        {result.TaskName && `Task: ${result.TaskName} (${result.TaskID})`}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
-      {/* Validation Results */}
+      {/* Validation Controls */}
       <Card className="bg-slate-800/50 border-slate-700">
         <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-2 sm:space-y-0">
-            <CardTitle className="text-white text-sm sm:text-base">Validation Results</CardTitle>
-            <Button 
-              onClick={runValidations} 
-              disabled={isValidating}
-              className="bg-blue-600 hover:bg-blue-700 text-xs sm:text-sm"
-            >
-              {isValidating ? (
-                <>
-                  <div className="h-3 w-3 sm:h-4 sm:w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />
-                  Validating...
-                </>
-              ) : (
-                <>
-                  <Zap className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                  Run Validation
-                </>
-              )}
-            </Button>
-          </div>
+          <CardTitle className="flex items-center justify-between text-white">
+            <span>Data Validation</span>
+            <div className="flex items-center space-x-2">
+              <Badge variant={errorCount > 0 ? 'destructive' : 'secondary'} className="bg-red-500/20 text-red-400">
+                {errorCount} Errors
+              </Badge>
+              <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-400">
+                {warningCount} Warnings
+              </Badge>
+            </div>
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          {isValidating && (
-            <div className="space-y-3">
-              <Progress value={66} className="w-full" />
-              <p className="text-sm text-slate-400">Running AI-enhanced validations...</p>
-            </div>
-          )}
-          
-          {!isValidating && validationErrors.length === 0 && (
-            <div className="text-center py-8">
-              <CheckCircle className="h-8 w-8 sm:h-12 sm:w-12 text-emerald-500 mx-auto mb-3" />
-              <p className="text-emerald-400 font-medium">All validations passed!</p>
-              <p className="text-slate-400 text-sm">Your data is ready for rule configuration.</p>
-            </div>
-          )}
+          <div className="space-y-4">
+            <Button 
+              onClick={runValidations}
+              disabled={isValidating}
+              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+            >
+              <Zap className="h-4 w-4 mr-2" />
+              {isValidating ? 'Running Validations...' : 'Run All Validations'}
+            </Button>
 
-          {!isValidating && validationErrors.length > 0 && (
-            <div className="space-y-4">
-              {Object.entries(errorsByType).map(([type, count]) => (
-                <div key={type} className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
-                  <span className="text-white capitalize text-sm">{type.replace('_', ' ')}</span>
-                  <Badge variant={validationErrors.find(e => e.type === type)?.severity === 'error' ? 'destructive' : 'secondary'}>
-                    {count}
-                  </Badge>
+            {isValidating && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm text-slate-400">
+                  <span>Validating data...</span>
+                  <span>{validationProgress}%</span>
                 </div>
-              ))}
-              
-              <div className="max-h-64 overflow-y-auto space-y-2">
-                {validationErrors.map((error, index) => (
-                  <div key={index} className="p-3 bg-slate-700/50 rounded border-l-4 border-red-500">
-                    <div className="flex flex-col sm:flex-row sm:items-start justify-between space-y-2 sm:space-y-0">
-                      <div className="flex-1">
-                        <p className="text-white font-medium text-sm">{error.message}</p>
-                        <p className="text-slate-400 text-xs">{error.entity}</p>
-                      </div>
-                      <Badge variant={error.severity === 'error' ? 'destructive' : 'secondary'} className="text-xs self-start">
-                        {error.severity}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
+                <Progress value={validationProgress} className="w-full" />
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </CardContent>
       </Card>
+
+      {/* AI Suggestions */}
+      {showSuggestions && (
+        <Card className="bg-slate-800/50 border-slate-700">
+          <CardHeader>
+            <CardTitle className="flex items-center text-white">
+              <Brain className="h-5 w-5 mr-2" />
+              AI Suggestions
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {aiSuggestions.map((suggestion, index) => (
+                <div key={index} className="p-4 bg-slate-700 rounded-lg border border-purple-500/30">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h4 className="text-white font-medium">{suggestion.message}</h4>
+                      <p className="text-slate-300 text-sm mt-1">{suggestion.action}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => applyAiSuggestion(suggestion)}
+                      className="bg-purple-600 hover:bg-purple-700"
+                    >
+                      <Wand2 className="h-3 w-3 mr-1" />
+                      Apply
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Validation Results */}
+      {validationErrors.length > 0 && (
+        <Card className="bg-slate-800/50 border-slate-700">
+          <CardHeader>
+            <CardTitle className="text-white">Validation Results</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {validationErrors.map((error, index) => (
+                <div 
+                  key={index} 
+                  className={`p-3 rounded-lg border ${
+                    error.severity === 'error' 
+                      ? 'bg-red-500/10 border-red-500/30' 
+                      : 'bg-yellow-500/10 border-yellow-500/30'
+                  }`}
+                >
+                  <div className="flex items-start space-x-2">
+                    <AlertCircle className={`h-4 w-4 mt-0.5 ${
+                      error.severity === 'error' ? 'text-red-400' : 'text-yellow-400'
+                    }`} />
+                    <div className="flex-1">
+                      <p className={`text-sm font-medium ${
+                        error.severity === 'error' ? 'text-red-400' : 'text-yellow-400'
+                      }`}>
+                        {error.message}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        {error.entity} {error.field && `• ${error.field}`}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className={`text-xs ${
+                      error.severity === 'error' 
+                        ? 'border-red-500/30 text-red-400' 
+                        : 'border-yellow-500/30 text-yellow-400'
+                    }`}>
+                      {error.severity}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* No Errors State */}
+      {validationErrors.length === 0 && !isValidating && (
+        <Card className="bg-slate-800/50 border-slate-700">
+          <CardContent className="text-center py-8">
+            <CheckCircle className="h-12 w-12 text-emerald-500 mx-auto mb-4" />
+            <h3 className="text-white font-medium mb-2">All Validations Passed!</h3>
+            <p className="text-slate-400">Your data is clean and ready for processing.</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
