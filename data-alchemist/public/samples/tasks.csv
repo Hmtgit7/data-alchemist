@@ -1,0 +1,12 @@
+
+TaskID,TaskName,Category,Duration,RequiredSkills,PreferredPhases,MaxConcurrent
+T001,Frontend Development,development,2,"javascript,react","[1,2]",3
+T002,Backend API,development,3,"python,django","[1,2,3]",2
+T003,Database Design,architecture,1,"postgresql,mongodb","[1]",1
+T004,Mobile App,development,4,"swift,kotlin","[2,3,4]",2
+T005,DevOps Setup,infrastructure,2,"docker,kubernetes","[1,3]",1
+T006,UI/UX Design,design,1,"figma,css","[1,2]",2
+T007,Testing Suite,testing,2,"selenium,jest","[4,5]",3
+T008,Security Audit,security,1,"cybersecurity,penetration","[5,6]",1
+T009,Performance Optimization,optimization,2,"javascript,python","[3,4]",2
+T010,Documentation,documentation,1,"technical writing","[5,6]",4

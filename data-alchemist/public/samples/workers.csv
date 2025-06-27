@@ -1,0 +1,12 @@
+
+WorkerID,WorkerName,Skills,AvailableSlots,MaxLoadPerPhase,WorkerGroup,QualificationLevel
+W001,Alice Johnson,"javascript,react,typescript","[1,2,3,4]",4,senior,expert
+W002,Bob Smith,"python,django,postgresql","[1,3,5]",3,senior,expert
+W003,Carol Davis,"java,spring,microservices","[2,4,6]",3,senior,advanced
+W004,David Wilson,"nodejs,express,mongodb","[1,2,4,5]",5,junior,intermediate
+W005,Eva Martinez,"react,vue,css","[1,3,4,6]",4,junior,intermediate
+W006,Frank Brown,"python,flask,redis","[2,3,5,6]",3,mid,advanced
+W007,Grace Taylor,"javascript,angular,rxjs","[1,4,5,6]",4,mid,advanced
+W008,Henry Clark,"java,kotlin,android","[2,3,4]",3,senior,expert
+W009,Iris Lee,"swift,ios,xcode","[1,5,6]",3,mid,advanced
+W010,Jack Wang,"php,laravel,mysql","[1,2,3,5]",4,junior,intermediate
