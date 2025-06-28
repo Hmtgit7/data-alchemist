@@ -37,11 +37,11 @@ interface SearchCondition {
   entity: string;
   field: string;
   operator: string;
-  value: string | number | string[];
+  value: string | number | string[] | number[];
 }
 
 const ValidationTab = () => {
-  const { clients, workers, tasks, validationErrors, setValidationErrors } = useData();
+  const { clients, workers, tasks, validationErrors, setValidationErrors, rules, setClients, setWorkers, setTasks } = useData();
   const { toast } = useToast();
   const [isValidating, setIsValidating] = useState(false);
   const [naturalLanguageSearch, setNaturalLanguageSearch] = useState('');
@@ -49,65 +49,205 @@ const ValidationTab = () => {
   const [aiSuggestions, setAiSuggestions] = useState<AiSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [validationProgress, setValidationProgress] = useState(0);
+  const [naturalLanguageModification, setNaturalLanguageModification] = useState('');
+  const [isModifying, setIsModifying] = useState(false);
 
-  // Natural language search parser
+  // Enhanced natural language search parser
   const parseNaturalLanguageQuery = (query: string): SearchCondition[] => {
     const lowerQuery = query.toLowerCase();
     const conditions: SearchCondition[] = [];
 
-    // Duration conditions
-    const durationMatch = lowerQuery.match(/duration\s*(?:of\s*)?(?:more\s*than|greater\s*than|>\s*)?(\d+)/);
-    if (durationMatch) {
+    // Duration conditions - enhanced patterns
+    const durationPatterns = [
+      /duration\s*(?:of\s*)?(?:more\s*than|greater\s*than|>\s*|above\s*)(\d+)/,
+      /duration\s*(?:of\s*)?(?:less\s*than|<\s*|below\s*)(\d+)/,
+      /duration\s*(?:of\s*)?(?:equals?|=\s*|is\s*)(\d+)/,
+      /tasks?\s*(?:that\s*)?(?:take|last|require)\s*(?:more\s*than\s*)?(\d+)\s*(?:phases?|periods?)/,
+      /long\s*(?:running\s*)?tasks?\s*\(?\s*>\s*(\d+)\s*\)?/
+    ];
+
+    durationPatterns.forEach(pattern => {
+      const match = lowerQuery.match(pattern);
+      if (match) {
+        const operator = pattern.source.includes('less|<|below') ? '<' : 
+                        pattern.source.includes('equals|=|is') ? '=' : '>';
+        conditions.push({
+          entity: 'tasks',
+          field: 'Duration',
+          operator,
+          value: parseInt(match[1])
+        });
+      }
+    });
+
+    // Priority conditions - enhanced patterns
+    const priorityPatterns = [
+      /priority\s*(?:level\s*)?(?:of\s*)?(\d+)/,
+      /high\s*priority\s*(?:clients?|customers?)/,
+      /low\s*priority\s*(?:clients?|customers?)/,
+      /critical\s*(?:clients?|customers?)/,
+      /(?:clients?|customers?)\s*(?:with\s*)?priority\s*(?:level\s*)?(\d+)/
+    ];
+
+    priorityPatterns.forEach(pattern => {
+      const match = lowerQuery.match(pattern);
+      if (match) {
+        if (pattern.source.includes('high|critical')) {
+          conditions.push({
+            entity: 'clients',
+            field: 'PriorityLevel',
+            operator: '>=',
+            value: 4
+          });
+        } else if (pattern.source.includes('low')) {
+          conditions.push({
+            entity: 'clients',
+            field: 'PriorityLevel',
+            operator: '<=',
+            value: 2
+          });
+        } else if (match[1]) {
+          conditions.push({
+            entity: 'clients',
+            field: 'PriorityLevel',
+            operator: '=',
+            value: parseInt(match[1])
+          });
+        }
+      }
+    });
+
+    // Phase conditions - enhanced patterns
+    const phasePatterns = [
+      /phase\s*(\d+)/,
+      /(?:in\s*)?phases?\s*(\d+)(?:\s*(?:to|through|\-)\s*(\d+))?/,
+      /(?:scheduled\s*(?:for|in)\s*)?phase\s*(\d+)/,
+      /early\s*phases?/,
+      /late\s*phases?/
+    ];
+
+    phasePatterns.forEach(pattern => {
+      const match = lowerQuery.match(pattern);
+      if (match) {
+        if (pattern.source.includes('early')) {
+          conditions.push({
+            entity: 'tasks',
+            field: 'PreferredPhases',
+            operator: 'includes_range',
+            value: [1, 2]
+          });
+        } else if (pattern.source.includes('late')) {
+          conditions.push({
+            entity: 'tasks',
+            field: 'PreferredPhases',
+            operator: 'includes_range',
+            value: [5, 6]
+          });
+        } else if (match[1]) {
+          const startPhase = parseInt(match[1]);
+          const endPhase = match[2] ? parseInt(match[2]) : startPhase;
+          conditions.push({
+            entity: 'tasks',
+            field: 'PreferredPhases',
+            operator: endPhase > startPhase ? 'includes_range' : 'includes',
+            value: endPhase > startPhase ? [startPhase, endPhase] : startPhase
+          });
+        }
+      }
+    });
+
+    // Skill conditions - enhanced patterns
+    const skillPatterns = [
+      /(?:workers?\s*(?:with\s*)?(?:skill|skills)\s*(?:in\s*)?|skilled\s*in\s*)([a-zA-Z,\s]+)/,
+      /(?:skill|skills)\s*(?:of\s*)?([a-zA-Z,\s]+)/,
+      /(?:expert|experienced)\s*(?:in\s*)?([a-zA-Z,\s]+)/,
+      /([a-zA-Z]+)\s*(?:specialists?|experts?|developers?)/
+    ];
+
+    skillPatterns.forEach(pattern => {
+      const match = lowerQuery.match(pattern);
+      if (match) {
+        const skillText = match[1].trim();
+        const skills = skillText.includes(',') ? 
+          skillText.split(',').map(s => s.trim()) : 
+          [skillText];
+        conditions.push({
+          entity: 'workers',
+          field: 'Skills',
+          operator: 'includes',
+          value: skills
+        });
+      }
+    });
+
+    // Worker group conditions
+    const groupPatterns = [
+      /(?:senior|experienced|expert)\s*(?:workers?|employees?)/,
+      /(?:junior|entry\s*level|beginner)\s*(?:workers?|employees?)/,
+      /(?:mid\s*level|intermediate)\s*(?:workers?|employees?)/
+    ];
+
+    groupPatterns.forEach(pattern => {
+      const match = lowerQuery.match(pattern);
+      if (match) {
+        let groupValue = '';
+        if (pattern.source.includes('senior|experienced|expert')) {
+          groupValue = 'senior';
+        } else if (pattern.source.includes('junior|entry|beginner')) {
+          groupValue = 'junior';
+        } else if (pattern.source.includes('mid|intermediate')) {
+          groupValue = 'mid';
+        }
+        
+        if (groupValue) {
+          conditions.push({
+            entity: 'workers',
+            field: 'WorkerGroup',
+            operator: '=',
+            value: groupValue
+          });
+        }
+      }
+    });
+
+    // Name conditions - enhanced patterns
+    const namePatterns = [
+      /(?:named?|called)\s*([a-zA-Z\s]+)/,
+      /(?:client|worker|task)\s*(?:with\s*)?(?:name|title)\s*([a-zA-Z\s]+)/,
+      /([A-Z][a-zA-Z\s]*(?:Corp|Inc|Ltd|Company|Solutions|Labs|Industries))/
+    ];
+
+    namePatterns.forEach(pattern => {
+      const match = lowerQuery.match(pattern);
+      if (match) {
+        conditions.push({
+          entity: 'all',
+          field: 'Name',
+          operator: 'contains',
+          value: match[1].trim()
+        });
+      }
+    });
+
+    // Category conditions
+    const categoryMatch = lowerQuery.match(/(?:category|type)\s*(?:of\s*)?([a-zA-Z]+)/);
+    if (categoryMatch) {
       conditions.push({
         entity: 'tasks',
-        field: 'Duration',
-        operator: '>',
-        value: parseInt(durationMatch[1])
-      });
-    }
-
-    // Priority conditions
-    const priorityMatch = lowerQuery.match(/priority\s*(?:level\s*)?(?:of\s*)?(\d+)/);
-    if (priorityMatch) {
-      conditions.push({
-        entity: 'clients',
-        field: 'PriorityLevel',
+        field: 'Category',
         operator: '=',
-        value: parseInt(priorityMatch[1])
+        value: categoryMatch[1]
       });
     }
 
-    // Phase conditions
-    const phaseMatch = lowerQuery.match(/phase\s*(\d+)/);
-    if (phaseMatch) {
+    // Concurrent conditions
+    const concurrentMatch = lowerQuery.match(/(?:concurrent|parallel|simultaneous)\s*(?:tasks?|jobs?)\s*(?:more\s*than\s*)?(\d+)/);
+    if (concurrentMatch) {
       conditions.push({
         entity: 'tasks',
-        field: 'PreferredPhases',
-        operator: 'includes',
-        value: parseInt(phaseMatch[1])
-      });
-    }
-
-    // Skill conditions
-    const skillMatch = lowerQuery.match(/(?:skill|skills)\s*(?:of\s*)?([a-zA-Z,]+)/);
-    if (skillMatch) {
-      const skills = skillMatch[1].split(',').map(s => s.trim());
-      conditions.push({
-        entity: 'workers',
-        field: 'Skills',
-        operator: 'includes',
-        value: skills
-      });
-    }
-
-    // Name conditions
-    const nameMatch = lowerQuery.match(/(?:name|called)\s*(?:is\s*)?([a-zA-Z\s]+)/);
-    if (nameMatch) {
-      conditions.push({
-        entity: 'all',
-        field: 'Name',
-        operator: 'contains',
-        value: nameMatch[1].trim()
+        field: 'MaxConcurrent',
+        operator: '>',
+        value: parseInt(concurrentMatch[1])
       });
     }
 
@@ -120,118 +260,168 @@ const ValidationTab = () => {
     conditions.forEach(condition => {
       if (condition.entity === 'clients' || condition.entity === 'all') {
         clients.forEach(client => {
-          if (condition.field === 'PriorityLevel' && condition.operator === '=') {
-            if (client.PriorityLevel === condition.value) {
-              results.push({
-                ClientID: client.ClientID,
-                ClientName: client.ClientName,
-                PriorityLevel: client.PriorityLevel,
-                RequestedTaskIDs: client.RequestedTaskIDs,
-                GroupTag: client.GroupTag
-              });
+          let matches = false;
+
+          if (condition.field === 'PriorityLevel') {
+            const clientPriority = client.PriorityLevel;
+            const conditionValue = Number(condition.value);
+            
+            switch (condition.operator) {
+              case '=':
+                matches = clientPriority === conditionValue;
+                break;
+              case '>':
+                matches = clientPriority > conditionValue;
+                break;
+              case '<':
+                matches = clientPriority < conditionValue;
+                break;
+              case '>=':
+                matches = clientPriority >= conditionValue;
+                break;
+              case '<=':
+                matches = clientPriority <= conditionValue;
+                break;
             }
           } else if (condition.field === 'Name' && condition.operator === 'contains') {
-            if (client.ClientName.toLowerCase().includes(String(condition.value).toLowerCase())) {
-              results.push({
-                ClientID: client.ClientID,
-                ClientName: client.ClientName,
-                PriorityLevel: client.PriorityLevel,
-                RequestedTaskIDs: client.RequestedTaskIDs,
-                GroupTag: client.GroupTag
-              });
-            }
+            matches = client.ClientName.toLowerCase().includes(String(condition.value).toLowerCase());
+          }
+
+          if (matches) {
+            results.push({
+              ClientID: client.ClientID,
+              ClientName: client.ClientName,
+              PriorityLevel: client.PriorityLevel,
+              RequestedTaskIDs: client.RequestedTaskIDs,
+              GroupTag: client.GroupTag
+            });
           }
         });
       }
 
       if (condition.entity === 'workers' || condition.entity === 'all') {
         workers.forEach(worker => {
+          let matches = false;
+
           if (condition.field === 'Skills' && condition.operator === 'includes') {
             const workerSkills = worker.Skills.toLowerCase().split(',').map(s => s.trim());
-            const hasSkill = Array.isArray(condition.value) && condition.value.some((skill: string) => 
-              workerSkills.includes(skill.toLowerCase())
+            const searchSkills = Array.isArray(condition.value) ? 
+              condition.value.map((s: string | number) => String(s).toLowerCase()) : 
+              [String(condition.value).toLowerCase()];
+            
+            matches = searchSkills.some(skill => 
+              workerSkills.some(workerSkill => workerSkill.includes(skill))
             );
-            if (hasSkill) {
-              results.push({
-                WorkerID: worker.WorkerID,
-                WorkerName: worker.WorkerName,
-                Skills: worker.Skills,
-                AvailableSlots: worker.AvailableSlots,
-                MaxLoadPerPhase: worker.MaxLoadPerPhase,
-                WorkerGroup: worker.WorkerGroup,
-                QualificationLevel: worker.QualificationLevel
-              });
-            }
+          } else if (condition.field === 'WorkerGroup' && condition.operator === '=') {
+            matches = worker.WorkerGroup.toLowerCase() === String(condition.value).toLowerCase();
           } else if (condition.field === 'Name' && condition.operator === 'contains') {
-            if (worker.WorkerName.toLowerCase().includes(String(condition.value).toLowerCase())) {
-              results.push({
-                WorkerID: worker.WorkerID,
-                WorkerName: worker.WorkerName,
-                Skills: worker.Skills,
-                AvailableSlots: worker.AvailableSlots,
-                MaxLoadPerPhase: worker.MaxLoadPerPhase,
-                WorkerGroup: worker.WorkerGroup,
-                QualificationLevel: worker.QualificationLevel
-              });
-            }
+            matches = worker.WorkerName.toLowerCase().includes(String(condition.value).toLowerCase());
+          }
+
+          if (matches) {
+            results.push({
+              WorkerID: worker.WorkerID,
+              WorkerName: worker.WorkerName,
+              Skills: worker.Skills,
+              AvailableSlots: worker.AvailableSlots,
+              MaxLoadPerPhase: worker.MaxLoadPerPhase,
+              WorkerGroup: worker.WorkerGroup,
+              QualificationLevel: worker.QualificationLevel
+            });
           }
         });
       }
 
       if (condition.entity === 'tasks' || condition.entity === 'all') {
         tasks.forEach(task => {
-          if (condition.field === 'Duration' && condition.operator === '>') {
-            if (task.Duration > Number(condition.value)) {
-              results.push({
-                TaskID: task.TaskID,
-                TaskName: task.TaskName,
-                Category: task.Category,
-                Duration: task.Duration,
-                RequiredSkills: task.RequiredSkills,
-                PreferredPhases: task.PreferredPhases,
-                MaxConcurrent: task.MaxConcurrent
-              });
+          let matches = false;
+
+          if (condition.field === 'Duration') {
+            const taskDuration = task.Duration;
+            const conditionValue = Number(condition.value);
+            
+            switch (condition.operator) {
+              case '=':
+                matches = taskDuration === conditionValue;
+                break;
+              case '>':
+                matches = taskDuration > conditionValue;
+                break;
+              case '<':
+                matches = taskDuration < conditionValue;
+                break;
+              case '>=':
+                matches = taskDuration >= conditionValue;
+                break;
+              case '<=':
+                matches = taskDuration <= conditionValue;
+                break;
             }
-          } else if (condition.field === 'PreferredPhases' && condition.operator === 'includes') {
+          } else if (condition.field === 'PreferredPhases') {
             try {
-              const phases = JSON.parse(task.PreferredPhases);
-              if (Array.isArray(phases) && phases.includes(condition.value)) {
-                results.push({
-                  TaskID: task.TaskID,
-                  TaskName: task.TaskName,
-                  Category: task.Category,
-                  Duration: task.Duration,
-                  RequiredSkills: task.RequiredSkills,
-                  PreferredPhases: task.PreferredPhases,
-                  MaxConcurrent: task.MaxConcurrent
-                });
+              let phases: number[] = [];
+              
+              // Handle JSON array format
+              try {
+                phases = JSON.parse(task.PreferredPhases);
+              } catch {
+                // Handle range format like "1-3"
+                const rangeMatch = task.PreferredPhases.match(/^(\d+)-(\d+)$/);
+                if (rangeMatch) {
+                  const start = parseInt(rangeMatch[1]);
+                  const end = parseInt(rangeMatch[2]);
+                  phases = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+                }
+              }
+
+              if (Array.isArray(phases)) {
+                if (condition.operator === 'includes') {
+                  matches = phases.includes(Number(condition.value));
+                } else if (condition.operator === 'includes_range') {
+                  const [start, end] = condition.value as [number, number];
+                  matches = phases.some(phase => phase >= start && phase <= end);
+                }
               }
             } catch {
-              // Handle string format like "1-3"
-              if (task.PreferredPhases.includes(String(condition.value))) {
-                results.push({
-                  TaskID: task.TaskID,
-                  TaskName: task.TaskName,
-                  Category: task.Category,
-                  Duration: task.Duration,
-                  RequiredSkills: task.RequiredSkills,
-                  PreferredPhases: task.PreferredPhases,
-                  MaxConcurrent: task.MaxConcurrent
-                });
-              }
+              // Skip malformed data
+            }
+          } else if (condition.field === 'Category' && condition.operator === '=') {
+            matches = task.Category.toLowerCase() === String(condition.value).toLowerCase();
+          } else if (condition.field === 'MaxConcurrent') {
+            const taskConcurrent = task.MaxConcurrent;
+            const conditionValue = Number(condition.value);
+            
+            switch (condition.operator) {
+              case '=':
+                matches = taskConcurrent === conditionValue;
+                break;
+              case '>':
+                matches = taskConcurrent > conditionValue;
+                break;
+              case '<':
+                matches = taskConcurrent < conditionValue;
+                break;
+              case '>=':
+                matches = taskConcurrent >= conditionValue;
+                break;
+              case '<=':
+                matches = taskConcurrent <= conditionValue;
+                break;
             }
           } else if (condition.field === 'Name' && condition.operator === 'contains') {
-            if (task.TaskName.toLowerCase().includes(String(condition.value).toLowerCase())) {
-              results.push({
-                TaskID: task.TaskID,
-                TaskName: task.TaskName,
-                Category: task.Category,
-                Duration: task.Duration,
-                RequiredSkills: task.RequiredSkills,
-                PreferredPhases: task.PreferredPhases,
-                MaxConcurrent: task.MaxConcurrent
-              });
-            }
+            matches = task.TaskName.toLowerCase().includes(String(condition.value).toLowerCase());
+          }
+
+          if (matches) {
+            results.push({
+              TaskID: task.TaskID,
+              TaskName: task.TaskName,
+              Category: task.Category,
+              Duration: task.Duration,
+              RequiredSkills: task.RequiredSkills,
+              PreferredPhases: task.PreferredPhases,
+              MaxConcurrent: task.MaxConcurrent
+            });
           }
         });
       }
@@ -265,6 +455,171 @@ const ValidationTab = () => {
       title: "Search completed",
       description: `Found ${results.length} results for your query.`,
     });
+  };
+
+  // Natural language data modification
+  const handleNaturalLanguageModification = async () => {
+    setIsModifying(true);
+    const input = naturalLanguageModification.toLowerCase();
+    
+    try {
+      // Parse modification commands
+      let modified = false;
+
+      // Priority modifications
+      if (input.includes('set priority') || input.includes('change priority')) {
+        const priorityMatch = input.match(/(?:set|change)\s+priority\s+(?:of\s+)?([a-zA-Z\s]+)\s+to\s+(\d+)/);
+        if (priorityMatch) {
+          const clientName = priorityMatch[1].trim();
+          const newPriority = parseInt(priorityMatch[2]);
+          
+          const updatedClients = clients.map(client => {
+            if (client.ClientName.toLowerCase().includes(clientName)) {
+              return { ...client, PriorityLevel: newPriority };
+            }
+            return client;
+          });
+          setClients(updatedClients);
+          modified = true;
+        }
+      }
+
+      // Skill additions
+      if (input.includes('add skill') || input.includes('give skill')) {
+        const skillMatch = input.match(/(?:add|give)\s+skill\s+([a-zA-Z]+)\s+to\s+(?:worker\s+)?([a-zA-Z\s]+)/);
+        if (skillMatch) {
+          const skill = skillMatch[1].trim();
+          const workerName = skillMatch[2].trim();
+          
+          const updatedWorkers = workers.map(worker => {
+            if (worker.WorkerName.toLowerCase().includes(workerName)) {
+              const currentSkills = worker.Skills;
+              if (!currentSkills.toLowerCase().includes(skill.toLowerCase())) {
+                return { ...worker, Skills: `${currentSkills}, ${skill}` };
+              }
+            }
+            return worker;
+          });
+          setWorkers(updatedWorkers);
+          modified = true;
+        }
+      }
+
+      // Duration modifications
+      if (input.includes('set duration') || input.includes('change duration')) {
+        const durationMatch = input.match(/(?:set|change)\s+duration\s+(?:of\s+)?(?:task\s+)?([a-zA-Z\d\s]+)\s+to\s+(\d+)/);
+        if (durationMatch) {
+          const taskIdentifier = durationMatch[1].trim();
+          const newDuration = parseInt(durationMatch[2]);
+          
+          const updatedTasks = tasks.map(task => {
+            if (task.TaskName.toLowerCase().includes(taskIdentifier) || 
+                task.TaskID.toLowerCase().includes(taskIdentifier)) {
+              return { ...task, Duration: newDuration };
+            }
+            return task;
+          });
+          setTasks(updatedTasks);
+          modified = true;
+        }
+      }
+
+      // Phase modifications
+      if (input.includes('move') && input.includes('phase')) {
+        const phaseMatch = input.match(/move\s+(?:task\s+)?([a-zA-Z\d\s]+)\s+to\s+phase\s+(\d+)/);
+        if (phaseMatch) {
+          const taskIdentifier = phaseMatch[1].trim();
+          const newPhase = parseInt(phaseMatch[2]);
+          
+          const updatedTasks = tasks.map(task => {
+            if (task.TaskName.toLowerCase().includes(taskIdentifier) || 
+                task.TaskID.toLowerCase().includes(taskIdentifier)) {
+              return { ...task, PreferredPhases: `[${newPhase}]` };
+            }
+            return task;
+          });
+          setTasks(updatedTasks);
+          modified = true;
+        }
+      }
+
+      // Worker group reassignment
+      if (input.includes('move') && (input.includes('senior') || input.includes('junior') || input.includes('mid'))) {
+        const groupMatch = input.match(/move\s+(?:worker\s+)?([a-zA-Z\s]+)\s+to\s+(senior|junior|mid)/);
+        if (groupMatch) {
+          const workerName = groupMatch[1].trim();
+          const newGroup = groupMatch[2];
+          
+          const updatedWorkers = workers.map(worker => {
+            if (worker.WorkerName.toLowerCase().includes(workerName)) {
+              return { ...worker, WorkerGroup: newGroup };
+            }
+            return worker;
+          });
+          setWorkers(updatedWorkers);
+          modified = true;
+        }
+      }
+
+      // MaxLoad adjustments
+      if (input.includes('set load') || input.includes('change load')) {
+        const loadMatch = input.match(/(?:set|change)\s+(?:max\s+)?load\s+(?:of\s+)?(?:worker\s+)?([a-zA-Z\s]+)\s+to\s+(\d+)/);
+        if (loadMatch) {
+          const workerName = loadMatch[1].trim();
+          const newLoad = parseInt(loadMatch[2]);
+          
+          const updatedWorkers = workers.map(worker => {
+            if (worker.WorkerName.toLowerCase().includes(workerName)) {
+              return { ...worker, MaxLoadPerPhase: newLoad };
+            }
+            return worker;
+          });
+          setWorkers(updatedWorkers);
+          modified = true;
+        }
+      }
+
+      // Bulk operations
+      if (input.includes('all') && input.includes('priority')) {
+        const bulkPriorityMatch = input.match(/set\s+all\s+(?:client\s+)?priorities\s+to\s+(\d+)/);
+        if (bulkPriorityMatch) {
+          const newPriority = parseInt(bulkPriorityMatch[1]);
+          const updatedClients = clients.map(client => ({
+            ...client,
+            PriorityLevel: newPriority
+          }));
+          setClients(updatedClients);
+          modified = true;
+        }
+      }
+
+      if (modified) {
+        toast({
+          title: "Data modified successfully",
+          description: "Your natural language command has been executed.",
+        });
+        setNaturalLanguageModification('');
+        
+        // Re-run validations after modification
+        setTimeout(() => {
+          runValidations();
+        }, 500);
+      } else {
+        toast({
+          title: "Command not recognized",
+          description: "Please try rephrasing your modification request.",
+          variant: "destructive"
+        });
+      }
+    } catch {
+      toast({
+        title: "Modification failed",
+        description: "An error occurred while processing your command.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsModifying(false);
+    }
   };
 
   const runValidations = useCallback(async () => {
@@ -541,12 +896,232 @@ const ValidationTab = () => {
       }
     });
 
+    updateProgress(85);
+
+    // 12. Circular co-run groups detection
+    try {
+      const coRunRules = rules.filter(rule => rule.type === 'coRun' && rule.active);
+      const taskGroups = new Map<string, string[]>();
+      
+      coRunRules.forEach(rule => {
+        const tasks = rule.config.tasks as string[];
+        if (tasks && Array.isArray(tasks)) {
+          taskGroups.set(rule.id, tasks);
+        }
+      });
+
+      // Check for circular dependencies
+      const visited = new Set<string>();
+      const recursionStack = new Set<string>();
+
+      const detectCycle = (taskId: string, path: string[]): boolean => {
+        if (recursionStack.has(taskId)) {
+          const cycleStart = path.indexOf(taskId);
+          const cycle = path.slice(cycleStart).concat(taskId);
+          errors.push({
+            type: 'circular_corun',
+            message: `Circular co-run dependency detected: ${cycle.join(' → ')}`,
+            entity: 'Co-run Rules',
+            severity: 'error'
+          });
+          return true;
+        }
+
+        if (visited.has(taskId)) return false;
+
+        visited.add(taskId);
+        recursionStack.add(taskId);
+
+        // Find all tasks that this task must run with
+        for (const [, tasks] of taskGroups) {
+          if (tasks.includes(taskId)) {
+            for (const relatedTask of tasks) {
+              if (relatedTask !== taskId) {
+                if (detectCycle(relatedTask, [...path, taskId])) {
+                  return true;
+                }
+              }
+            }
+          }
+        }
+
+        recursionStack.delete(taskId);
+        return false;
+      };
+
+      tasks.forEach(task => {
+        if (!visited.has(task.TaskID)) {
+          detectCycle(task.TaskID, []);
+        }
+      });
+    } catch {
+      // Handle case where rules context is not available
+    }
+
+    updateProgress(88);
+
+    // 15. Conflicting rules vs phase-window constraints
+    try {
+      const phaseWindowRules = rules.filter(rule => rule.type === 'phaseWindow' && rule.active);
+      const coRunRules = rules.filter(rule => rule.type === 'coRun' && rule.active);
+      const loadLimitRules = rules.filter(rule => rule.type === 'loadLimit' && rule.active);
+
+      // Check for conflicts between co-run rules and phase windows
+      coRunRules.forEach(coRunRule => {
+        const coRunTasks = coRunRule.config.tasks as string[];
+        if (coRunTasks && Array.isArray(coRunTasks)) {
+          const taskPhaseConstraints = new Map<string, number[]>();
+          
+          phaseWindowRules.forEach(phaseRule => {
+            const taskId = phaseRule.config.taskId as string;
+            const allowedPhases = phaseRule.config.allowedPhases as number[];
+            
+            if (coRunTasks.includes(taskId) && allowedPhases) {
+              taskPhaseConstraints.set(taskId, allowedPhases);
+            }
+          });
+
+          // Check if co-run tasks have conflicting phase constraints
+          if (taskPhaseConstraints.size > 1) {
+            const allConstraints = Array.from(taskPhaseConstraints.values());
+            const intersection = allConstraints.reduce((acc, curr) => 
+              acc.filter(phase => curr.includes(phase))
+            );
+
+            if (intersection.length === 0) {
+              const tasksWithConstraints = Array.from(taskPhaseConstraints.keys());
+              errors.push({
+                type: 'conflicting_rules',
+                message: `Co-run tasks ${tasksWithConstraints.join(', ')} have conflicting phase window constraints - no common phases available`,
+                entity: `Rule Conflict: ${coRunRule.name}`,
+                severity: 'error'
+              });
+            }
+          }
+        }
+      });
+
+      // Check for conflicts between load limits and task requirements
+      loadLimitRules.forEach(loadRule => {
+        const workerGroup = loadRule.config.workerGroup as string;
+        const maxSlots = loadRule.config.maxSlots as number;
+        
+        if (workerGroup && maxSlots) {
+          const groupWorkers = workers.filter(w => w.WorkerGroup === workerGroup);
+          const totalGroupCapacity = groupWorkers.reduce((sum, w) => sum + w.MaxLoadPerPhase, 0);
+          
+          if (maxSlots > totalGroupCapacity) {
+            errors.push({
+              type: 'conflicting_rules',
+              message: `Load limit rule sets max ${maxSlots} slots for group '${workerGroup}', but group only has ${totalGroupCapacity} total capacity`,
+              entity: `Rule Conflict: ${loadRule.name}`,
+              severity: 'warning'
+            });
+          }
+        }
+      });
+    } catch {
+      // Handle rule conflict analysis errors
+    }
+
+    updateProgress(90);
+
+    // 13. Overloaded workers calculation
+    workers.forEach(worker => {
+      try {
+        const availableSlots = JSON.parse(worker.AvailableSlots);
+        if (Array.isArray(availableSlots) && availableSlots.length < worker.MaxLoadPerPhase) {
+          errors.push({
+            type: 'overloaded_worker',
+            message: `Worker has ${availableSlots.length} available slots but MaxLoadPerPhase is ${worker.MaxLoadPerPhase}`,
+            entity: `Worker ${worker.WorkerID}`,
+            field: 'MaxLoadPerPhase',
+            severity: 'warning'
+          });
+        }
+      } catch {
+        // Skip if AvailableSlots is malformed (already handled in previous validation)
+      }
+    });
+
+    updateProgress(95);
+
+    // 14. Phase-slot saturation analysis
+    const phaseAnalysis = new Map<number, { totalSlots: number; totalDuration: number }>();
+    
+    // Calculate total available slots per phase
+    workers.forEach(worker => {
+      try {
+        const availableSlots = JSON.parse(worker.AvailableSlots);
+        if (Array.isArray(availableSlots)) {
+          availableSlots.forEach(phase => {
+            if (!phaseAnalysis.has(phase)) {
+              phaseAnalysis.set(phase, { totalSlots: 0, totalDuration: 0 });
+            }
+            phaseAnalysis.get(phase)!.totalSlots += worker.MaxLoadPerPhase;
+          });
+        }
+      } catch {
+        // Skip malformed data
+      }
+    });
+
+    // Calculate total required duration per phase
+    tasks.forEach(task => {
+      try {
+        let phases: number[] = [];
+        
+        // Handle JSON array format
+        try {
+          phases = JSON.parse(task.PreferredPhases);
+        } catch {
+          // Handle range format like "1-3"
+          const rangeMatch = task.PreferredPhases.match(/^(\d+)-(\d+)$/);
+          if (rangeMatch) {
+            const start = parseInt(rangeMatch[1]);
+            const end = parseInt(rangeMatch[2]);
+            phases = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+          }
+        }
+
+        if (Array.isArray(phases)) {
+          phases.forEach(phase => {
+            if (!phaseAnalysis.has(phase)) {
+              phaseAnalysis.set(phase, { totalSlots: 0, totalDuration: 0 });
+            }
+            phaseAnalysis.get(phase)!.totalDuration += task.Duration;
+          });
+        }
+      } catch {
+        // Skip malformed data
+      }
+    });
+
+    // Check for phase saturation
+    phaseAnalysis.forEach((analysis, phase) => {
+      if (analysis.totalDuration > analysis.totalSlots) {
+        errors.push({
+          type: 'phase_saturation',
+          message: `Phase ${phase}: Required duration (${analysis.totalDuration}) exceeds available slots (${analysis.totalSlots})`,
+          entity: `Phase ${phase}`,
+          severity: 'error'
+        });
+      } else if (analysis.totalDuration > analysis.totalSlots * 0.8) {
+        errors.push({
+          type: 'phase_saturation',
+          message: `Phase ${phase}: High utilization - Required duration (${analysis.totalDuration}) is ${Math.round((analysis.totalDuration / analysis.totalSlots) * 100)}% of available slots`,
+          entity: `Phase ${phase}`,
+          severity: 'warning'
+        });
+      }
+    });
+
     updateProgress(100);
 
     setValidationErrors(errors);
     setIsValidating(false);
 
-    // Generate AI suggestions based on errors
+    // Generate comprehensive AI suggestions based on errors
     const suggestions: AiSuggestion[] = [];
     
     const missingSkillErrors = errors.filter(e => e.type === 'missing_skill');
@@ -554,8 +1129,17 @@ const ValidationTab = () => {
       suggestions.push({
         type: 'add_worker_skill',
         message: 'Add missing skills to workers',
-        action: 'Add required skills to appropriate workers',
-        data: { missingSkills: missingSkillErrors.map(e => e.message) }
+        action: 'Automatically add required skills to workers with similar qualifications',
+        data: { 
+          missingSkills: missingSkillErrors.map(e => e.message),
+          suggestedAssignments: missingSkillErrors.map(e => {
+            const skill = e.message.replace('No worker has required skill: ', '');
+            const suitableWorkers = workers.filter(w => 
+              w.QualificationLevel === 'expert' || w.QualificationLevel === 'advanced'
+            ).slice(0, 2);
+            return { skill, workers: suitableWorkers.map(w => w.WorkerID) };
+          })
+        }
       });
     }
 
@@ -564,8 +1148,14 @@ const ValidationTab = () => {
       suggestions.push({
         type: 'fix_json',
         message: 'Fix invalid JSON in client attributes',
-        action: 'Validate and fix JSON format',
-        data: { invalidJsonCount: invalidJsonErrors.length }
+        action: 'Auto-correct JSON syntax and validate structure',
+        data: { 
+          invalidJsonCount: invalidJsonErrors.length,
+          fixedExamples: invalidJsonErrors.slice(0, 3).map(e => ({
+            client: e.entity,
+            suggestedFix: '{"budget": 50000, "timeline": "Q1", "priority": "high"}'
+          }))
+        }
       });
     }
 
@@ -574,8 +1164,63 @@ const ValidationTab = () => {
       suggestions.push({
         type: 'fix_duplicates',
         message: 'Resolve duplicate IDs',
-        action: 'Ensure unique IDs across all entities',
-        data: { duplicateCount: duplicateIdErrors.length }
+        action: 'Generate unique IDs with sequential numbering',
+        data: { 
+          duplicateCount: duplicateIdErrors.length,
+          suggestedPattern: 'Auto-increment: C001, C002, C003...'
+        }
+      });
+    }
+
+    const phaseErrors = errors.filter(e => e.type === 'phase_saturation');
+    if (phaseErrors.length > 0) {
+      suggestions.push({
+        type: 'rebalance_phases',
+        message: 'Rebalance phase allocation',
+        action: 'Redistribute tasks across phases to reduce saturation',
+        data: { 
+          saturatedPhases: phaseErrors.map(e => e.entity),
+          suggestedRebalancing: 'Move non-critical tasks to phases 3-6'
+        }
+      });
+    }
+
+    const conflictErrors = errors.filter(e => e.type === 'conflicting_rules');
+    if (conflictErrors.length > 0) {
+      suggestions.push({
+        type: 'resolve_conflicts',
+        message: 'Resolve rule conflicts',
+        action: 'Modify rules to eliminate conflicts or add priority ordering',
+        data: { 
+          conflicts: conflictErrors.length,
+          suggestedResolution: 'Add precedence rules or modify phase windows'
+        }
+      });
+    }
+
+    const overloadedWorkers = errors.filter(e => e.type === 'overloaded_worker');
+    if (overloadedWorkers.length > 0) {
+      suggestions.push({
+        type: 'fix_overload',
+        message: 'Fix worker overload issues',
+        action: 'Adjust MaxLoadPerPhase or increase available slots',
+        data: { 
+          overloadedCount: overloadedWorkers.length,
+          suggestedFix: 'Reduce MaxLoadPerPhase to match available slots'
+        }
+      });
+    }
+
+    const unknownRefErrors = errors.filter(e => e.type === 'unknown_reference');
+    if (unknownRefErrors.length > 0) {
+      suggestions.push({
+        type: 'fix_references',
+        message: 'Fix unknown task references',
+        action: 'Remove invalid task IDs or create missing tasks',
+        data: { 
+          invalidRefs: unknownRefErrors.length,
+          missingTasks: unknownRefErrors.map(e => e.message.match(/'([^']+)'/)?.[1]).filter(Boolean)
+        }
       });
     }
 
@@ -586,17 +1231,176 @@ const ValidationTab = () => {
       title: "Validation completed",
       description: `Found ${errors.length} issues (${errors.filter(e => e.severity === 'error').length} errors, ${errors.filter(e => e.severity === 'warning').length} warnings)`,
     });
-  }, [clients, workers, tasks, setValidationErrors, toast]);
+  }, [clients, workers, tasks, rules, setValidationErrors, toast]);
 
   const applyAiSuggestion = (suggestion: AiSuggestion) => {
-    // This would implement the actual fix logic
-    toast({
-      title: "AI suggestion applied",
-      description: suggestion.message,
-    });
-    
-    // Remove the suggestion after applying
-    setAiSuggestions(prev => prev.filter(s => s !== suggestion));
+    try {
+      switch (suggestion.type) {
+        case 'add_worker_skill':
+          const skillData = suggestion.data as { 
+            suggestedAssignments: Array<{ skill: string; workers: string[] }> 
+          };
+          
+          if (skillData.suggestedAssignments) {
+            const updatedWorkers = [...workers];
+            skillData.suggestedAssignments.forEach(assignment => {
+              assignment.workers.forEach(workerId => {
+                const workerIndex = updatedWorkers.findIndex(w => w.WorkerID === workerId);
+                if (workerIndex !== -1) {
+                  const currentSkills = updatedWorkers[workerIndex].Skills;
+                  if (!currentSkills.toLowerCase().includes(assignment.skill.toLowerCase())) {
+                    updatedWorkers[workerIndex].Skills = `${currentSkills}, ${assignment.skill}`;
+                  }
+                }
+              });
+            });
+            setWorkers(updatedWorkers);
+          }
+          break;
+
+        case 'fix_json':
+          
+          const updatedClients = [...clients];
+          updatedClients.forEach(client => {
+            try {
+              JSON.parse(client.AttributesJSON);
+            } catch {
+              // Fix invalid JSON by providing a default structure
+              client.AttributesJSON = '{"budget": 50000, "timeline": "Q1", "priority": "medium"}';
+            }
+          });
+          setClients(updatedClients);
+          break;
+
+        case 'fix_duplicates':
+          // Fix duplicate IDs by adding incremental suffixes
+          const clientIds = new Set<string>();
+          const workerIds = new Set<string>();
+          const taskIds = new Set<string>();
+          
+          const fixedClients = clients.map((client) => {
+            let newId = client.ClientID;
+            let counter = 1;
+            while (clientIds.has(newId)) {
+              newId = `${client.ClientID}_${counter}`;
+              counter++;
+            }
+            clientIds.add(newId);
+            return { ...client, ClientID: newId };
+          });
+          
+          const fixedWorkers = workers.map((worker) => {
+            let newId = worker.WorkerID;
+            let counter = 1;
+            while (workerIds.has(newId)) {
+              newId = `${worker.WorkerID}_${counter}`;
+              counter++;
+            }
+            workerIds.add(newId);
+            return { ...worker, WorkerID: newId };
+          });
+          
+          const fixedTasks = tasks.map((task) => {
+            let newId = task.TaskID;
+            let counter = 1;
+            while (taskIds.has(newId)) {
+              newId = `${task.TaskID}_${counter}`;
+              counter++;
+            }
+            taskIds.add(newId);
+            return { ...task, TaskID: newId };
+          });
+          
+          setClients(fixedClients);
+          setWorkers(fixedWorkers);
+          setTasks(fixedTasks);
+          break;
+
+        case 'fix_overload':
+          const overloadUpdatedWorkers = workers.map(worker => {
+            try {
+              const availableSlots = JSON.parse(worker.AvailableSlots);
+              if (Array.isArray(availableSlots) && availableSlots.length < worker.MaxLoadPerPhase) {
+                return { ...worker, MaxLoadPerPhase: availableSlots.length };
+              }
+            } catch {
+              // For malformed data, set a reasonable default
+              return { ...worker, MaxLoadPerPhase: 3, AvailableSlots: '[1,2,3,4]' };
+            }
+            return worker;
+          });
+          setWorkers(overloadUpdatedWorkers);
+          break;
+
+        case 'fix_references':
+          const referencedUpdatedClients = clients.map(client => {
+            if (client.RequestedTaskIDs) {
+              const requestedTasks = client.RequestedTaskIDs.split(',').map(id => id.trim());
+              const existingTaskIds = tasks.map(t => t.TaskID);
+              const validTasks = requestedTasks.filter(taskId => existingTaskIds.includes(taskId));
+              return { ...client, RequestedTaskIDs: validTasks.join(', ') };
+            }
+            return client;
+          });
+          setClients(referencedUpdatedClients);
+          break;
+
+        case 'rebalance_phases':
+          // Redistribute tasks to reduce phase saturation
+          const phaseBalancedTasks = tasks.map((task, index) => {
+            // Move some tasks to later phases
+            if (index % 3 === 0) { // Every third task
+              try {
+                const phases = JSON.parse(task.PreferredPhases);
+                if (Array.isArray(phases) && phases.some(p => p <= 2)) {
+                  // Shift to later phases
+                  const newPhases = phases.map(p => Math.min(p + 2, 6));
+                  return { ...task, PreferredPhases: JSON.stringify(newPhases) };
+                }
+              } catch {
+                // For range format, shift the range
+                const rangeMatch = task.PreferredPhases.match(/^(\d+)-(\d+)$/);
+                if (rangeMatch) {
+                  const start = Math.min(parseInt(rangeMatch[1]) + 2, 5);
+                  const end = Math.min(parseInt(rangeMatch[2]) + 2, 6);
+                  return { ...task, PreferredPhases: `${start}-${end}` };
+                }
+              }
+            }
+            return task;
+          });
+          setTasks(phaseBalancedTasks);
+          break;
+
+        default:
+          toast({
+            title: "Suggestion not implemented",
+            description: "This suggestion type is not yet supported.",
+            variant: "destructive"
+          });
+          return;
+      }
+
+      toast({
+        title: "AI suggestion applied successfully",
+        description: suggestion.message,
+      });
+      
+      // Remove the suggestion after applying
+      setAiSuggestions(prev => prev.filter(s => s !== suggestion));
+      
+      // Re-run validations to show the improvements
+      setTimeout(() => {
+        runValidations();
+      }, 500);
+      
+    } catch {
+      toast({
+        title: "Failed to apply suggestion",
+        description: "An error occurred while applying the AI suggestion.",
+        variant: "destructive"
+      });
+    }
   };
 
   const errorCount = validationErrors.filter(e => e.severity === 'error').length;
@@ -644,6 +1448,72 @@ const ValidationTab = () => {
                 </div>
               </div>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Natural Language Data Modification */}
+      <Card className="bg-slate-800/50 border-slate-700">
+        <CardHeader>
+          <CardTitle className="flex items-center text-white">
+            <Wand2 className="h-5 w-5 mr-2" />
+            Natural Language Data Modification
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <div className="text-sm text-slate-400">
+                Examples: &quot;Set priority of TechCorp to 5&quot;, &quot;Add skill python to Alice&quot;, &quot;Change duration of Frontend to 3&quot;, &quot;Move worker Bob to senior group&quot;
+              </div>
+              <textarea
+                placeholder="Describe how you want to modify the data..."
+                value={naturalLanguageModification}
+                onChange={(e) => setNaturalLanguageModification(e.target.value)}
+                className="w-full h-24 bg-slate-700 border-slate-600 text-white rounded-md p-3 resize-none"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.ctrlKey) {
+                    handleNaturalLanguageModification();
+                  }
+                }}
+              />
+            </div>
+            
+            <div className="flex space-x-2">
+              <Button 
+                onClick={handleNaturalLanguageModification} 
+                disabled={isModifying || !naturalLanguageModification.trim()}
+                className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+              >
+                <Brain className="h-4 w-4 mr-2" />
+                {isModifying ? 'Processing...' : 'Apply Modification'}
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={() => setNaturalLanguageModification('')}
+                className="border-slate-600 text-slate-300 hover:bg-slate-700"
+              >
+                Clear
+              </Button>
+            </div>
+
+            {isModifying && (
+              <div className="flex items-center space-x-2 text-slate-400 text-sm">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-600 border-t-blue-600"></div>
+                <span>Processing your modification request...</span>
+              </div>
+            )}
+
+            <div className="text-xs text-slate-500 space-y-1">
+              <div><strong>Supported commands:</strong></div>
+              <div>• Priority: &quot;set priority of [client] to [1-5]&quot;</div>
+              <div>• Skills: &quot;add skill [skill] to [worker]&quot;</div>
+              <div>• Duration: &quot;set duration of [task] to [number]&quot;</div>
+              <div>• Phases: &quot;move [task] to phase [number]&quot;</div>
+              <div>• Groups: &quot;move [worker] to [senior/junior/mid]&quot;</div>
+              <div>• Load: &quot;set load of [worker] to [number]&quot;</div>
+              <div>• Bulk: &quot;set all priorities to [number]&quot;</div>
+            </div>
           </div>
         </CardContent>
       </Card>

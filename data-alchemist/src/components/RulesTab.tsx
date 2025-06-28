@@ -25,7 +25,7 @@ interface AiSuggestion {
 }
 
 const RulesTab = () => {
-  const { rules, addRule, removeRule } = useData();
+  const { rules, addRule, removeRule, clients, workers, tasks } = useData();
   const { toast } = useToast();
   const [selectedRuleType, setSelectedRuleType] = useState('');
   const [ruleConfig, setRuleConfig] = useState<RuleConfig>({});
@@ -42,30 +42,213 @@ const RulesTab = () => {
   ];
 
   const generateAiSuggestions = () => {
-    const suggestions: AiSuggestion[] = [
-      {
-        type: 'coRun',
-        name: 'Related Tasks Co-execution',
-        description: 'Tasks T1 and T2 always run together based on historical patterns',
-        confidence: 0.85,
-        rationale: 'These tasks share similar resource requirements and are often requested together'
-      },
-      {
-        type: 'loadLimit',
-        name: 'Senior Worker Load Balance',
-        description: 'Limit senior workers to maximum 3 tasks per phase',
-        confidence: 0.92,
-        rationale: 'Senior workers are overallocated in current data, causing bottlenecks'
-      },
-      {
-        type: 'phaseWindow',
-        name: 'Critical Tasks Early Phases',
-        description: 'High priority tasks should be scheduled in phases 1-2',
-        confidence: 0.78,
-        rationale: 'Priority level 4-5 tasks show better completion rates in early phases'
+    const suggestions: AiSuggestion[] = [];
+
+    // Analyze current data to generate intelligent suggestions
+
+    // 1. Co-run recommendations based on shared skills and clients
+    const taskAnalysis = new Map<string, { requiredSkills: string[], clients: string[] }>();
+    
+    tasks.forEach(task => {
+      const skills = task.RequiredSkills ? task.RequiredSkills.split(',').map(s => s.trim()) : [];
+      const requestingClients = clients.filter(c => 
+        c.RequestedTaskIDs && c.RequestedTaskIDs.includes(task.TaskID)
+      ).map(c => c.ClientID);
+      
+      taskAnalysis.set(task.TaskID, { requiredSkills: skills, clients: requestingClients });
+    });
+
+    // Find tasks with similar skills or shared clients
+    const taskPairs: Array<{tasks: string[], sharedSkills: number, sharedClients: number}> = [];
+    const taskIds = Array.from(taskAnalysis.keys());
+    
+    for (let i = 0; i < taskIds.length; i++) {
+      for (let j = i + 1; j < taskIds.length; j++) {
+        const task1 = taskAnalysis.get(taskIds[i])!;
+        const task2 = taskAnalysis.get(taskIds[j])!;
+        
+        const sharedSkills = task1.requiredSkills.filter(skill => 
+          task2.requiredSkills.includes(skill)
+        ).length;
+        
+        const sharedClients = task1.clients.filter(client => 
+          task2.clients.includes(client)
+        ).length;
+
+        if (sharedSkills >= 2 || sharedClients >= 2) {
+          taskPairs.push({
+            tasks: [taskIds[i], taskIds[j]],
+            sharedSkills,
+            sharedClients
+          });
+        }
       }
-    ];
+    }
+
+    if (taskPairs.length > 0) {
+      const bestPair = taskPairs.sort((a, b) => 
+        (b.sharedSkills + b.sharedClients) - (a.sharedSkills + a.sharedClients)
+      )[0];
+      
+      suggestions.push({
+        type: 'coRun',
+        name: `Co-run Tasks ${bestPair.tasks.join(' & ')}`,
+        description: `Tasks ${bestPair.tasks.join(' and ')} should run together`,
+        confidence: Math.min(0.95, 0.6 + (bestPair.sharedSkills + bestPair.sharedClients) * 0.1),
+        rationale: `Share ${bestPair.sharedSkills} skills and ${bestPair.sharedClients} clients`,
+        config: { tasks: bestPair.tasks }
+      });
+    }
+
+    // 2. Load limit recommendations based on worker capacity analysis
+    const workerGroups = ['senior', 'junior', 'mid'];
+    workerGroups.forEach(group => {
+      const groupWorkers = workers.filter(w => w.WorkerGroup === group);
+      if (groupWorkers.length > 0) {
+        const avgLoad = groupWorkers.reduce((sum, w) => sum + w.MaxLoadPerPhase, 0) / groupWorkers.length;
+        const maxLoad = Math.max(...groupWorkers.map(w => w.MaxLoadPerPhase));
+        
+        if (maxLoad > avgLoad * 1.5) {
+          suggestions.push({
+        type: 'loadLimit',
+            name: `Limit ${group} worker overload`,
+            description: `Set maximum load for ${group} workers to ${Math.ceil(avgLoad)}`,
+            confidence: 0.88,
+            rationale: `Some ${group} workers have ${maxLoad} load vs average ${avgLoad.toFixed(1)}`,
+            config: { workerGroup: group, maxSlots: Math.ceil(avgLoad) }
+          });
+        }
+      }
+    });
+
+    // 3. Phase window recommendations based on priority analysis
+    const highPriorityClients = clients.filter(c => c.PriorityLevel >= 4);
+    const highPriorityTasks = new Set<string>();
+    
+    highPriorityClients.forEach(client => {
+      if (client.RequestedTaskIDs) {
+        client.RequestedTaskIDs.split(',').forEach(taskId => {
+          highPriorityTasks.add(taskId.trim());
+        });
+      }
+    });
+
+    if (highPriorityTasks.size > 0) {
+      const criticalTasks = Array.from(highPriorityTasks).slice(0, 3);
+      suggestions.push({
+        type: 'phaseWindow',
+        name: 'Prioritize critical tasks in early phases',
+        description: `Schedule high-priority tasks (${criticalTasks.join(', ')}) in phases 1-2`,
+        confidence: 0.82,
+        rationale: `${highPriorityClients.length} high-priority clients require these tasks`,
+        config: { taskId: criticalTasks[0], allowedPhases: [1, 2] }
+      });
+    }
+
+    // 4. Skill matching recommendations
+    const allRequiredSkills = new Set<string>();
+    tasks.forEach(task => {
+      if (task.RequiredSkills) {
+        task.RequiredSkills.split(',').forEach(skill => {
+          allRequiredSkills.add(skill.trim());
+        });
+      }
+    });
+
+    const allWorkerSkills = new Set<string>();
+    workers.forEach(worker => {
+      if (worker.Skills) {
+        worker.Skills.split(',').forEach(skill => {
+          allWorkerSkills.add(skill.trim());
+        });
+      }
+    });
+
+    const missingSkills = Array.from(allRequiredSkills).filter(skill => 
+      !allWorkerSkills.has(skill)
+    );
+
+    if (missingSkills.length > 0) {
+      suggestions.push({
+        type: 'skillMatch',
+        name: 'Address skill gaps',
+        description: `Add missing skills: ${missingSkills.slice(0, 3).join(', ')}`,
+        confidence: 0.95,
+        rationale: `${missingSkills.length} required skills are missing from worker pool`,
+        config: { missingSkills: missingSkills.slice(0, 3) }
+      });
+    }
+
+    // 5. Phase saturation analysis
+    const phaseLoad = new Map<number, number>();
+    tasks.forEach(task => {
+      try {
+        let phases: number[] = [];
+        try {
+          phases = JSON.parse(task.PreferredPhases);
+        } catch {
+          const rangeMatch = task.PreferredPhases.match(/^(\d+)-(\d+)$/);
+          if (rangeMatch) {
+            const start = parseInt(rangeMatch[1]);
+            const end = parseInt(rangeMatch[2]);
+            phases = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+          }
+        }
+        
+        phases.forEach(phase => {
+          phaseLoad.set(phase, (phaseLoad.get(phase) || 0) + task.Duration);
+        });
+      } catch {
+        // Skip malformed data
+      }
+    });
+
+    const overloadedPhases = Array.from(phaseLoad.entries())
+      .filter(([, load]) => load > 10) // Threshold for overload
+      .sort((a, b) => b[1] - a[1]);
+
+    if (overloadedPhases.length > 0) {
+      const [phase, load] = overloadedPhases[0];
+      suggestions.push({
+        type: 'phaseWindow',
+        name: `Rebalance phase ${phase} workload`,
+        description: `Phase ${phase} is overloaded with ${load} duration units`,
+        confidence: 0.86,
+        rationale: `Phase ${phase} has significantly higher load than others`,
+        config: { redistributeFrom: phase, targetPhases: [phase + 1, phase + 2] }
+      });
+    }
+
+    // 6. Precedence recommendations based on task dependencies
+    const taskCategories = new Map<string, string[]>();
+    tasks.forEach(task => {
+      const category = task.Category;
+      if (!taskCategories.has(category)) {
+        taskCategories.set(category, []);
+      }
+      taskCategories.get(category)!.push(task.TaskID);
+    });
+
+    if (taskCategories.has('architecture') && taskCategories.has('development')) {
+      suggestions.push({
+        type: 'precedence',
+        name: 'Architecture before development',
+        description: 'Ensure architecture tasks complete before development tasks',
+        confidence: 0.90,
+        rationale: 'Architecture tasks should logically precede development work',
+        config: { 
+          before: taskCategories.get('architecture')![0], 
+          after: taskCategories.get('development')![0] 
+        }
+      });
+    }
+
     setAiSuggestions(suggestions);
+    
+    toast({
+      title: "AI Analysis Complete",
+      description: `Generated ${suggestions.length} intelligent rule suggestions based on your data.`,
+    });
   };
 
   const processNaturalLanguageRule = () => {
