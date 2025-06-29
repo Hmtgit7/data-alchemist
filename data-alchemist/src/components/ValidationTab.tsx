@@ -483,7 +483,7 @@ const ValidationTab = () => {
             }
           } else if (condition.field === 'Category' && (condition.operator === '=' || condition.operator === 'contains')) {
             if (condition.operator === '=') {
-              matches = task.Category.toLowerCase() === String(condition.value).toLowerCase();
+            matches = task.Category.toLowerCase() === String(condition.value).toLowerCase();
             } else {
               matches = task.Category.toLowerCase().includes(String(condition.value).toLowerCase());
             }
@@ -582,13 +582,13 @@ const ValidationTab = () => {
       }
       
       // Execute search with the conditions
-      const results = executeSearch(conditions);
+    const results = executeSearch(conditions);
       console.log('Search results:', results);
       
-      setSearchResults(results);
-      
-      toast({
-        title: "Search completed",
+    setSearchResults(results);
+
+    toast({
+      title: "Search completed",
         description: `Found ${results.length} result(s) for "${naturalLanguageSearch}"`,
       });
       
@@ -769,79 +769,79 @@ const ValidationTab = () => {
 
   // Helper function for pattern-based modifications (existing logic)
   const applyPatternBasedModification = async (input: string): Promise<boolean> => {
-    let modified = false;
+      let modified = false;
 
-    // Priority modifications
-    if (input.includes('set priority') || input.includes('change priority')) {
-      const priorityMatch = input.match(/(?:set|change)\s+priority\s+(?:of\s+)?([a-zA-Z\s]+)\s+to\s+(\d+)/);
-      if (priorityMatch) {
-        const clientName = priorityMatch[1].trim();
-        const newPriority = parseInt(priorityMatch[2]);
-        
-        const updatedClients = clients.map(client => {
-          if (client.ClientName.toLowerCase().includes(clientName)) {
-            return { ...client, PriorityLevel: newPriority };
-          }
-          return client;
-        });
-        setClients(updatedClients);
-        modified = true;
-      }
-    }
-
-    // Skill additions
-    if (input.includes('add skill') || input.includes('give skill')) {
-      const skillMatch = input.match(/(?:add|give)\s+skill\s+([a-zA-Z]+)\s+to\s+(?:worker\s+)?([a-zA-Z\s]+)/);
-      if (skillMatch) {
-        const skill = skillMatch[1].trim();
-        const workerName = skillMatch[2].trim();
-        
-        const updatedWorkers = workers.map(worker => {
-          if (worker.WorkerName.toLowerCase().includes(workerName)) {
-            const currentSkills = worker.Skills;
-            if (!currentSkills.toLowerCase().includes(skill.toLowerCase())) {
-              return { ...worker, Skills: `${currentSkills}, ${skill}` };
+      // Priority modifications
+      if (input.includes('set priority') || input.includes('change priority')) {
+        const priorityMatch = input.match(/(?:set|change)\s+priority\s+(?:of\s+)?([a-zA-Z\s]+)\s+to\s+(\d+)/);
+        if (priorityMatch) {
+          const clientName = priorityMatch[1].trim();
+          const newPriority = parseInt(priorityMatch[2]);
+          
+          const updatedClients = clients.map(client => {
+            if (client.ClientName.toLowerCase().includes(clientName)) {
+              return { ...client, PriorityLevel: newPriority };
             }
-          }
-          return worker;
-        });
-        setWorkers(updatedWorkers);
-        modified = true;
+            return client;
+          });
+          setClients(updatedClients);
+          modified = true;
+        }
       }
-    }
 
-    // Duration modifications
-    if (input.includes('set duration') || input.includes('change duration')) {
-      const durationMatch = input.match(/(?:set|change)\s+duration\s+(?:of\s+)?(?:task\s+)?([a-zA-Z\d\s]+)\s+to\s+(\d+)/);
-      if (durationMatch) {
-        const taskIdentifier = durationMatch[1].trim();
-        const newDuration = parseInt(durationMatch[2]);
-        
-        const updatedTasks = tasks.map(task => {
-          if (task.TaskName.toLowerCase().includes(taskIdentifier) || 
-              task.TaskID.toLowerCase().includes(taskIdentifier)) {
-            return { ...task, Duration: newDuration };
-          }
-          return task;
-        });
-        setTasks(updatedTasks);
-        modified = true;
+      // Skill additions
+      if (input.includes('add skill') || input.includes('give skill')) {
+        const skillMatch = input.match(/(?:add|give)\s+skill\s+([a-zA-Z]+)\s+to\s+(?:worker\s+)?([a-zA-Z\s]+)/);
+        if (skillMatch) {
+          const skill = skillMatch[1].trim();
+          const workerName = skillMatch[2].trim();
+          
+          const updatedWorkers = workers.map(worker => {
+            if (worker.WorkerName.toLowerCase().includes(workerName)) {
+              const currentSkills = worker.Skills;
+              if (!currentSkills.toLowerCase().includes(skill.toLowerCase())) {
+                return { ...worker, Skills: `${currentSkills}, ${skill}` };
+              }
+            }
+            return worker;
+          });
+          setWorkers(updatedWorkers);
+          modified = true;
+        }
       }
-    }
 
-    // Bulk operations
-    if (input.includes('all') && input.includes('priority')) {
-      const bulkPriorityMatch = input.match(/set\s+all\s+(?:client\s+)?priorities\s+to\s+(\d+)/);
-      if (bulkPriorityMatch) {
-        const newPriority = parseInt(bulkPriorityMatch[1]);
-        const updatedClients = clients.map(client => ({
-          ...client,
-          PriorityLevel: newPriority
-        }));
-        setClients(updatedClients);
-        modified = true;
+      // Duration modifications
+      if (input.includes('set duration') || input.includes('change duration')) {
+        const durationMatch = input.match(/(?:set|change)\s+duration\s+(?:of\s+)?(?:task\s+)?([a-zA-Z\d\s]+)\s+to\s+(\d+)/);
+        if (durationMatch) {
+          const taskIdentifier = durationMatch[1].trim();
+          const newDuration = parseInt(durationMatch[2]);
+          
+          const updatedTasks = tasks.map(task => {
+            if (task.TaskName.toLowerCase().includes(taskIdentifier) || 
+                task.TaskID.toLowerCase().includes(taskIdentifier)) {
+              return { ...task, Duration: newDuration };
+            }
+            return task;
+          });
+          setTasks(updatedTasks);
+          modified = true;
+        }
       }
-    }
+
+      // Bulk operations
+      if (input.includes('all') && input.includes('priority')) {
+        const bulkPriorityMatch = input.match(/set\s+all\s+(?:client\s+)?priorities\s+to\s+(\d+)/);
+        if (bulkPriorityMatch) {
+          const newPriority = parseInt(bulkPriorityMatch[1]);
+          const updatedClients = clients.map(client => ({
+            ...client,
+            PriorityLevel: newPriority
+          }));
+          setClients(updatedClients);
+          modified = true;
+        }
+      }
 
     return modified;
   };
