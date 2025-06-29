@@ -183,59 +183,107 @@ class AIService {
   private async processWithGemini(query: string, dataContext: Record<string, unknown>): Promise<AIResponse> {
     const model = this.genAI!.getGenerativeModel({ model: "gemini-pro" });
 
+    // Get sample data for better context
+    const clients = dataContext.clients as unknown[];
+    const workers = dataContext.workers as unknown[];
+    const tasks = dataContext.tasks as unknown[];
+
+    const sampleClient = clients?.[0] ? JSON.stringify(clients[0], null, 2) : '{}';
+    const sampleWorker = workers?.[0] ? JSON.stringify(workers[0], null, 2) : '{}';
+    const sampleTask = tasks?.[0] ? JSON.stringify(tasks[0], null, 2) : '{}';
+
     const prompt = `
-You are a data analysis AI. Given this query and data context, generate search conditions.
+You are a data analysis AI. Convert the natural language query to search conditions.
 
 Query: "${query}"
 
 Data Context:
-- Clients: ${(dataContext.clients as unknown[])?.length || 0} records
-- Workers: ${(dataContext.workers as unknown[])?.length || 0} records  
-- Tasks: ${(dataContext.tasks as unknown[])?.length || 0} records
+- Clients: ${clients?.length || 0} records
+- Workers: ${workers?.length || 0} records  
+- Tasks: ${tasks?.length || 0} records
 
-Available fields:
-Clients: ClientID, ClientName, PriorityLevel (1-5), RequestedTaskIDs, GroupTag, AttributesJSON
-Workers: WorkerID, WorkerName, Skills, AvailableSlots, MaxLoadPerPhase, WorkerGroup, QualificationLevel
-Tasks: TaskID, TaskName, Category, Duration, RequiredSkills, PreferredPhases, MaxConcurrent
+Sample Data Structures:
+Client: ${sampleClient}
+Worker: ${sampleWorker}
+Task: ${sampleTask}
 
 Return a JSON array of search conditions with this structure:
 [{
   "entity": "clients|workers|tasks",
   "field": "field_name",
-  "operator": "=|>|<|>=|<=|contains|includes|includes_range",
+  "operator": "=|>|<|>=|<=|contains|includes",
   "value": "value"
 }]
 
-Example queries:
+Examples:
 - "tasks with duration more than 2" → [{"entity": "tasks", "field": "Duration", "operator": ">", "value": 2}]
 - "high priority clients" → [{"entity": "clients", "field": "PriorityLevel", "operator": ">=", "value": 4}]
-- "workers with JavaScript skills" → [{"entity": "workers", "field": "Skills", "operator": "contains", "value": "JavaScript"}]
+- "workers with javascript skills" → [{"entity": "workers", "field": "Skills", "operator": "contains", "value": "javascript"}]
+- "all tasks" → [{"entity": "tasks", "field": "all", "operator": "all", "value": "*"}]
 
-Respond with ONLY the JSON array, no other text.
+Important: 
+- Use lowercase for skill searches
+- Priority levels: 1=low, 2-3=medium, 4-5=high
+- For "all X" queries, use field="all", operator="all", value="*"
+
+Respond with ONLY the JSON array.
 `;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-
     try {
-      const conditions = JSON.parse(text);
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text().trim();
+
+      // Clean up response (remove markdown formatting if present)
+      const cleanText = text.replace(/```json\s*|\s*```/g, '').trim();
+      
+      const conditions = JSON.parse(cleanText);
       return { success: true, data: conditions, confidence: 0.9 };
-    } catch {
+    } catch (error) {
+      console.error('Gemini processing failed:', error);
       return { success: false, error: 'Failed to parse AI response' };
     }
   }
 
   private async processWithGroq(query: string, dataContext: Record<string, unknown>): Promise<AIResponse> {
+    // Get sample data for context without overwhelming the API
+    const clients = dataContext.clients as unknown[];
+    const workers = dataContext.workers as unknown[];
+    const tasks = dataContext.tasks as unknown[];
+
+    const sampleData = {
+      clients: clients?.slice(0, 2) || [],
+      workers: workers?.slice(0, 2) || [],
+      tasks: tasks?.slice(0, 2) || []
+    };
+
     const completion = await this.groq!.chat.completions.create({
       messages: [
         {
           role: "system",
-          content: "You are a data analysis AI that converts natural language queries to structured search conditions. Respond with only valid JSON."
+          content: `You are a data analysis AI that converts natural language queries to structured search conditions. 
+
+Return a JSON array of search conditions with this structure:
+[{"entity": "clients|workers|tasks", "field": "field_name", "operator": "=|>|<|>=|<=|contains|includes", "value": "value"}]
+
+Examples:
+- "tasks with duration more than 2" → [{"entity": "tasks", "field": "Duration", "operator": ">", "value": 2}]
+- "high priority clients" → [{"entity": "clients", "field": "PriorityLevel", "operator": ">=", "value": 4}]
+- "workers with javascript skills" → [{"entity": "workers", "field": "Skills", "operator": "contains", "value": "javascript"}]
+- "all tasks" → [{"entity": "tasks", "field": "all", "operator": "all", "value": "*"}]
+
+Important: Use lowercase for skill searches. For "all X" queries, use field="all", operator="all", value="*"
+
+Respond with ONLY the JSON array.`
         },
         {
           role: "user",
-          content: `Query: "${query}"\nData: ${JSON.stringify(dataContext, null, 2)}`
+          content: `Query: "${query}"
+          
+Data counts: ${clients?.length || 0} clients, ${workers?.length || 0} workers, ${tasks?.length || 0} tasks
+
+Sample data structure:
+${JSON.stringify(sampleData, null, 2)}`
         }
       ],
       model: "llama3-8b-8192",
@@ -244,9 +292,12 @@ Respond with ONLY the JSON array, no other text.
     });
 
     try {
-      const conditions = JSON.parse(completion.choices[0]?.message?.content || '[]');
+      const responseText = completion.choices[0]?.message?.content || '[]';
+      const cleanText = responseText.replace(/```json\s*|\s*```/g, '').trim();
+      const conditions = JSON.parse(cleanText);
       return { success: true, data: conditions, confidence: 0.85 };
-    } catch {
+    } catch (error) {
+      console.error('Groq processing failed:', error);
       return { success: false, error: 'Failed to parse AI response' };
     }
   }
@@ -312,6 +363,9 @@ Respond with ONLY the JSON array, no other text.
       skillsOf: /(?:skill|skills)\s*(?:of\s*)?([a-zA-Z\s,.-]+)/,
       experts: /(?:expert|experienced)\s*(?:in\s*)?([a-zA-Z\s,.-]+)/,
       specialists: /([a-zA-Z]+)\s*(?:specialists?|experts?|developers?)/,
+      javascriptSkills: /(?:workers?\s*(?:with\s*)?)?javascript\s*(?:skills?|developers?|experts?)?/,
+      reactSkills: /(?:workers?\s*(?:with\s*)?)?react\s*(?:skills?|developers?|experts?)?/,
+      pythonSkills: /(?:workers?\s*(?:with\s*)?)?python\s*(?:skills?|developers?|experts?)?/,
       
       // Phase patterns
       phase: /(?:tasks?\s*(?:in\s*)?)?phase\s*(\d+)/,
@@ -446,6 +500,30 @@ Respond with ONLY the JSON array, no other text.
               field: 'Skills',
               operator: 'contains',
               value: match[1]
+            });
+            break;
+          case 'javascriptSkills':
+            conditions.push({
+              entity: 'workers',
+              field: 'Skills',
+              operator: 'contains',
+              value: 'javascript'
+            });
+            break;
+          case 'reactSkills':
+            conditions.push({
+              entity: 'workers',
+              field: 'Skills',
+              operator: 'contains',
+              value: 'react'
+            });
+            break;
+          case 'pythonSkills':
+            conditions.push({
+              entity: 'workers',
+              field: 'Skills',
+              operator: 'contains',
+              value: 'python'
             });
             break;
           case 'phase':

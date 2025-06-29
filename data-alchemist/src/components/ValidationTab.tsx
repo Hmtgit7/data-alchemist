@@ -551,9 +551,22 @@ const ValidationTab = () => {
       return;
     }
 
+    // Check if we have data to search
+    const totalRecords = clients.length + workers.length + tasks.length;
+    if (totalRecords === 0) {
+      toast({
+        title: "No data to search",
+        description: "Please upload some data files first before searching.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    console.log('=== Natural Language Search Debug ===');
+    console.log('Query:', naturalLanguageSearch);
+    console.log('Data available:', { clients: clients.length, workers: workers.length, tasks: tasks.length });
+
     try {
-      console.log('Processing natural language search:', naturalLanguageSearch);
-      
       // Use AI service for natural language processing
       const dataContext = { clients, workers, tasks };
       const aiResponse = await aiService.processNaturalLanguageQuery(naturalLanguageSearch, dataContext);
@@ -561,34 +574,38 @@ const ValidationTab = () => {
       console.log('AI Response:', aiResponse);
       
       let conditions: SearchCondition[] = [];
+      let searchMethod = '';
       
-      if (aiResponse.success && aiResponse.data && Array.isArray(aiResponse.data)) {
+      if (aiResponse.success && aiResponse.data && Array.isArray(aiResponse.data) && aiResponse.data.length > 0) {
         conditions = aiResponse.data;
+        searchMethod = 'AI';
         console.log('Using AI-generated conditions:', conditions);
       } else {
         // Fallback to pattern matching
-        console.log('AI failed, using pattern matching fallback');
+        console.log('AI failed or returned no conditions, using pattern matching fallback');
         conditions = parseNaturalLanguageQuery(naturalLanguageSearch);
+        searchMethod = 'Pattern Matching';
         console.log('Pattern-based conditions:', conditions);
       }
       
       if (conditions.length === 0) {
         toast({
-          title: "No search conditions found",
-          description: "Could not understand the search query. Try using simpler terms like 'high priority clients' or 'workers with JavaScript skills'.",
+          title: "Query not understood",
+          description: "Try simpler queries like: 'all tasks', 'high priority clients', 'workers with javascript skills', 'tasks with duration more than 2'",
           variant: "destructive"
         });
         return;
       }
       
       // Execute search with the conditions
-    const results = executeSearch(conditions);
+      const results = executeSearch(conditions);
       console.log('Search results:', results);
+      console.log('=== End Debug ===');
       
-    setSearchResults(results);
+      setSearchResults(results);
 
-    toast({
-      title: "Search completed",
+      toast({
+        title: `Search completed (${searchMethod})`,
         description: `Found ${results.length} result(s) for "${naturalLanguageSearch}"`,
       });
       
@@ -605,7 +622,7 @@ const ValidationTab = () => {
           setSearchResults(results);
           
           toast({
-            title: "Search completed (pattern matching)",
+            title: "Search completed (Pattern Matching)",
             description: `Found ${results.length} result(s) using pattern matching`,
           });
         } else {
@@ -615,7 +632,7 @@ const ValidationTab = () => {
         console.error('Pattern matching fallback also failed:', fallbackError);
         toast({
           title: "Search failed",
-          description: "Could not process your search query. Please try rephrasing or use simpler terms.",
+          description: "Could not process your search query. Try 'all tasks' or 'high priority clients' or upload sample data first.",
           variant: "destructive"
         });
       }
