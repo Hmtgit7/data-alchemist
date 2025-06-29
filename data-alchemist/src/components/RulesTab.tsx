@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,9 +7,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, Brain, Lightbulb, Settings } from 'lucide-react';
+import { Plus, Trash2, Brain, Lightbulb, Settings, Sparkles, Zap } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { useToast } from '@/hooks/use-toast';
+import aiService from '@/lib/ai/ai-service';
 
 interface RuleConfig {
   [key: string]: string | number | string[] | number[] | undefined;
@@ -31,6 +32,16 @@ const RulesTab = () => {
   const [ruleConfig, setRuleConfig] = useState<RuleConfig>({});
   const [naturalLanguageRule, setNaturalLanguageRule] = useState('');
   const [aiSuggestions, setAiSuggestions] = useState<AiSuggestion[]>([]);
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [aiServiceAvailable, setAiServiceAvailable] = useState(false);
+
+  // Check AI service availability on mount
+  useEffect(() => {
+    const checkAI = async () => {
+      setAiServiceAvailable(aiService.isAvailable());
+    };
+    checkAI();
+  }, []);
 
   const ruleTypes = [
     { value: 'coRun', label: 'Co-Run Tasks', description: 'Tasks that must run together' },
@@ -41,10 +52,76 @@ const RulesTab = () => {
     { value: 'skillMatch', label: 'Skill Match', description: 'Enforce skill requirements' }
   ];
 
-  const generateAiSuggestions = () => {
-    const suggestions: AiSuggestion[] = [];
+  const generateAiSuggestions = async () => {
+    setIsGeneratingAI(true);
+    
+    try {
+      let suggestions: AiSuggestion[] = [];
 
-    // Analyze current data to generate intelligent suggestions
+      // Check if we have enough data to generate suggestions
+      if (clients.length === 0 && workers.length === 0 && tasks.length === 0) {
+        toast({
+          title: "No data available",
+          description: "Please upload some data first in the Data Ingestion tab to generate rule suggestions.",
+          variant: "destructive"
+        });
+        setIsGeneratingAI(false);
+        return;
+      }
+      
+      // Try AI-powered suggestions first
+      if (aiServiceAvailable) {
+        const aiSuggestions = await aiService.generateRuleSuggestions({ clients, workers, tasks });
+        
+        suggestions = aiSuggestions.map(aiSuggestion => ({
+          type: aiSuggestion.type,
+          name: aiSuggestion.name,
+          description: aiSuggestion.description,
+          confidence: aiSuggestion.confidence,
+          rationale: aiSuggestion.rationale,
+          config: aiSuggestion.config as RuleConfig
+        }));
+
+        if (suggestions.length > 0) {
+          toast({
+            title: "AI Rule Suggestions Generated",
+            description: `Generated ${suggestions.length} intelligent rule suggestions using ${aiService.getAvailableServices().join(', ')}`,
+          });
+        }
+      }
+      
+      // Fallback to pattern-based analysis if no AI suggestions or AI not available
+      if (suggestions.length === 0) {
+        suggestions = generatePatternBasedSuggestions();
+        
+        toast({
+          title: "Pattern-based Suggestions Generated",
+          description: `Generated ${suggestions.length} rule suggestions using data analysis (consider adding AI API keys for better results)`,
+        });
+      }
+      
+      setAiSuggestions(suggestions);
+      
+    } catch (error) {
+      console.error('AI suggestion generation failed:', error);
+      
+      // Fallback to pattern-based suggestions
+      const suggestions = generatePatternBasedSuggestions();
+      setAiSuggestions(suggestions);
+      
+      toast({
+        title: "Fallback Suggestions Generated",
+        description: "Using pattern-based analysis due to AI service error",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
+  // Pattern-based suggestion generation (existing logic)
+  const generatePatternBasedSuggestions = (): AiSuggestion[] => {
+    const suggestions: AiSuggestion[] = [];
 
     // 1. Co-run recommendations based on shared skills and clients
     const taskAnalysis = new Map<string, { requiredSkills: string[], clients: string[] }>();
@@ -243,67 +320,132 @@ const RulesTab = () => {
       });
     }
 
-    setAiSuggestions(suggestions);
-    
-    toast({
-      title: "AI Analysis Complete",
-      description: `Generated ${suggestions.length} intelligent rule suggestions based on your data.`,
-    });
+    return suggestions;
   };
 
-  const processNaturalLanguageRule = () => {
-    const input = naturalLanguageRule.toLowerCase();
-    let ruleType = '';
-    let config: RuleConfig = {};
+  const processNaturalLanguageRule = async () => {
+    if (!naturalLanguageRule.trim()) return;
 
-    if (input.includes('together') || input.includes('same time')) {
-      ruleType = 'coRun';
-      // Extract task IDs from natural language
-      const taskMatches = input.match(/t\d+/g);
-      config = {
-        tasks: taskMatches || [],
-        name: 'Natural Language Co-run Rule'
-      };
-    } else if (input.includes('maximum') || input.includes('limit')) {
-      ruleType = 'loadLimit';
-      const numberMatch = input.match(/(\d+)/);
-      config = {
-        maxSlots: numberMatch ? parseInt(numberMatch[1]) : 3,
-        workerGroup: 'default',
-        name: 'Natural Language Load Limit'
-      };
-    } else if (input.includes('phase') || input.includes('period')) {
-      ruleType = 'phaseWindow';
-      const phaseMatches = input.match(/phase[s]?\s*(\d+)/g);
-      config = {
-        allowedPhases: phaseMatches ? phaseMatches.map(p => parseInt(p.match(/\d+/)?.[0] || '1')) : [1, 2],
-        taskId: 'all',
-        name: 'Natural Language Phase Window'
-      };
-    }
-
-    if (ruleType) {
-      const newRule = {
-        id: `rule-${Date.now()}`,
-        type: ruleType,
-        name: config.name as string,
-        description: `Created from: "${naturalLanguageRule}"`,
-        config,
-        active: true
-      };
-
-      addRule(newRule);
-      setNaturalLanguageRule('');
+    // Check if we have data to work with
+    if (clients.length === 0 && workers.length === 0 && tasks.length === 0) {
       toast({
-        title: "Rule created successfully",
-        description: `AI has interpreted your request and created a ${ruleType} rule.`,
-      });
-    } else {
-      toast({
-        title: "Unable to interpret",
-        description: "Please try rephrasing your rule or use the manual rule builder.",
+        title: "No data available",
+        description: "Please upload some data first in the Data Ingestion tab to create rules.",
         variant: "destructive"
       });
+      return;
+    }
+
+    setIsGeneratingAI(true);
+    
+    try {
+      let ruleType = '';
+      let config: RuleConfig = {};
+      let ruleName = '';
+      let ruleDescription = '';
+
+      // Try AI-powered rule interpretation first
+      if (aiServiceAvailable) {
+        const aiResponse = await aiService.processNaturalLanguageQuery(
+          `Convert this business rule to a structured rule: "${naturalLanguageRule}"`,
+          { clients, workers, tasks }
+        );
+
+        if (aiResponse.success && aiResponse.data) {
+          // AI successfully interpreted the rule
+          const ruleData = (aiResponse.data as Array<Record<string, unknown>>)?.[0]; // Take first interpretation
+          if (ruleData) {
+            ruleType = (ruleData.type as string) || 'coRun';
+            config = { 
+              name: `AI Rule: ${naturalLanguageRule}`,
+              ...(ruleData.config as Record<string, unknown>)
+            };
+            ruleName = `AI-Generated: ${ruleData.name || ruleType}`;
+            ruleDescription = `AI interpretation: ${naturalLanguageRule}`;
+            
+            toast({
+              title: "AI Rule Interpretation",
+              description: `Rule interpreted using ${aiService.getAvailableServices().join(', ')} with ${Math.round((aiResponse.confidence || 0.8) * 100)}% confidence`,
+            });
+          }
+        }
+      }
+
+      // Fallback to pattern matching if AI didn't work
+      if (!ruleType) {
+        const input = naturalLanguageRule.toLowerCase();
+
+        if (input.includes('together') || input.includes('same time')) {
+          ruleType = 'coRun';
+          const taskMatches = input.match(/t\d+/g);
+          config = {
+            tasks: taskMatches || [],
+            name: 'Natural Language Co-run Rule'
+          };
+          ruleName = 'Co-run Rule';
+          ruleDescription = `Pattern-based interpretation: "${naturalLanguageRule}"`;
+        } else if (input.includes('maximum') || input.includes('limit')) {
+          ruleType = 'loadLimit';
+          const numberMatch = input.match(/(\d+)/);
+          config = {
+            maxSlots: numberMatch ? parseInt(numberMatch[1]) : 3,
+            workerGroup: 'default',
+            name: 'Natural Language Load Limit'
+          };
+          ruleName = 'Load Limit Rule';
+          ruleDescription = `Pattern-based interpretation: "${naturalLanguageRule}"`;
+        } else if (input.includes('phase') || input.includes('period')) {
+          ruleType = 'phaseWindow';
+          const phaseMatches = input.match(/phase[s]?\s*(\d+)/g);
+          config = {
+            allowedPhases: phaseMatches ? phaseMatches.map(p => parseInt(p.match(/\d+/)?.[0] || '1')) : [1, 2],
+            taskId: 'all',
+            name: 'Natural Language Phase Window'
+          };
+          ruleName = 'Phase Window Rule';
+          ruleDescription = `Pattern-based interpretation: "${naturalLanguageRule}"`;
+        }
+
+        if (ruleType) {
+          toast({
+            title: "Pattern-based Rule Creation",
+            description: "Using pattern matching (consider adding AI API keys for better results)",
+          });
+        }
+      }
+
+      if (ruleType) {
+        const newRule = {
+          id: `rule-${Date.now()}`,
+          type: ruleType,
+          name: ruleName || config.name as string,
+          description: ruleDescription,
+          config,
+          active: true
+        };
+
+        addRule(newRule);
+        setNaturalLanguageRule('');
+        toast({
+          title: "Rule created successfully",
+          description: `Created ${ruleType} rule from natural language input.`,
+        });
+      } else {
+        toast({
+          title: "Unable to interpret",
+          description: "Please try rephrasing your rule or use the manual rule builder.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Natural language rule processing failed:', error);
+      toast({
+        title: "Rule processing failed",
+        description: "An error occurred while interpreting your rule. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGeneratingAI(false);
     }
   };
 
@@ -358,13 +500,49 @@ const RulesTab = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <Button 
-              onClick={generateAiSuggestions}
-              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-            >
-              <Brain className="h-4 w-4 mr-2" />
-              Generate AI Suggestions
-            </Button>
+            <div className="flex items-center justify-between">
+              <Button 
+                onClick={generateAiSuggestions}
+                disabled={isGeneratingAI}
+                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-50"
+              >
+                {isGeneratingAI ? (
+                  <>
+                    <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    {aiServiceAvailable ? <Sparkles className="h-4 w-4 mr-2" /> : <Brain className="h-4 w-4 mr-2" />}
+                    Generate AI Suggestions
+                  </>
+                )}
+              </Button>
+              
+              <div className="flex items-center space-x-2">
+                <Badge 
+                  variant={aiServiceAvailable ? "default" : "secondary"}
+                  className={aiServiceAvailable ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-slate-600 text-slate-400"}
+                >
+                  {aiServiceAvailable ? (
+                    <>
+                      <Zap className="h-3 w-3 mr-1" />
+                      AI Enhanced
+                    </>
+                  ) : (
+                    <>
+                      <Settings className="h-3 w-3 mr-1" />
+                      Pattern Mode
+                    </>
+                  )}
+                </Badge>
+                {aiServiceAvailable && (
+                  <Badge variant="outline" className="text-xs text-slate-400 border-slate-600">
+                    {aiService.getAvailableServices().join(', ')}
+                  </Badge>
+                )}
+              </div>
+            </div>
 
             {aiSuggestions.map((suggestion, index) => (
               <div key={index} className="p-4 bg-slate-700 rounded-lg border border-purple-500/30">
@@ -421,11 +599,20 @@ const RulesTab = () => {
             </div>
             <Button 
               onClick={processNaturalLanguageRule}
-              disabled={!naturalLanguageRule.trim()}
-              className="bg-blue-600 hover:bg-blue-700"
+              disabled={!naturalLanguageRule.trim() || isGeneratingAI}
+              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
             >
-              <Brain className="h-4 w-4 mr-2" />
-              Create Rule with AI
+              {isGeneratingAI ? (
+                <>
+                  <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  {aiServiceAvailable ? <Sparkles className="h-4 w-4 mr-2" /> : <Brain className="h-4 w-4 mr-2" />}
+                  {aiServiceAvailable ? 'Create Rule with AI' : 'Create Rule'}
+                </>
+              )}
             </Button>
           </div>
         </CardContent>

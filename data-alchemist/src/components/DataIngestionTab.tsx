@@ -8,6 +8,7 @@ import { Upload, FileSpreadsheet, Brain, CheckCircle, AlertCircle } from 'lucide
 import { useData } from '@/contexts/DataContext';
 import DataGrid from '@/components/DataGrid';
 import { useToast } from '@/hooks/use-toast';
+import aiService from '@/lib/ai/ai-service';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import type { Client, Worker, Task } from '@/contexts/DataContext';
@@ -31,19 +32,56 @@ const DataIngestionTab = () => {
   const { clients, setClients, workers, setWorkers, tasks, setTasks } = useData();
   const { toast } = useToast();
 
-  // AI-powered column mapping logic
-  const generateColumnMapping = (headers: string[], type: 'clients' | 'workers' | 'tasks'): ColumnMapping => {
+
+
+  // AI-powered column mapping logic with enhanced intelligence
+  const generateColumnMapping = useCallback(async (headers: string[], type: 'clients' | 'workers' | 'tasks'): Promise<ColumnMapping> => {
     const mapping: ColumnMapping = {};
     
     const expectedColumns = {
-      clients: ['clientid', 'clientname', 'prioritylevel', 'requestedtaskids', 'grouptag', 'attributesjson'],
-      workers: ['workerid', 'workername', 'skills', 'availableslots', 'maxloadperphase', 'workergroup', 'qualificationlevel'],
-      tasks: ['taskid', 'taskname', 'category', 'duration', 'requiredskills', 'preferredphases', 'maxconcurrent']
+      clients: ['ClientID', 'ClientName', 'PriorityLevel', 'RequestedTaskIDs', 'GroupTag', 'AttributesJSON'],
+      workers: ['WorkerID', 'WorkerName', 'Skills', 'AvailableSlots', 'MaxLoadPerPhase', 'WorkerGroup', 'QualificationLevel'],
+      tasks: ['TaskID', 'TaskName', 'Category', 'Duration', 'RequiredSkills', 'PreferredPhases', 'MaxConcurrent']
     };
 
     const expected = expectedColumns[type];
     
-    expected.forEach(expectedCol => {
+    // Try AI-powered mapping first if available
+    if (aiService.isAvailable()) {
+      try {
+        const aiResponse = await aiService.processNaturalLanguageQuery(
+          `Map these CSV headers to standard ${type} fields: ${headers.join(', ')}. Expected fields: ${expected.join(', ')}. Return the best mapping.`,
+          { headers, expectedColumns: expected, type }
+        );
+
+        if (aiResponse.success && aiResponse.data) {
+          // AI provided a mapping
+          const aiMapping = (aiResponse.data as Array<{mapping?: ColumnMapping}>)?.[0]?.mapping || {};
+          Object.assign(mapping, aiMapping);
+          
+          // Fill in any AI-missed mappings with pattern matching
+          const unmappedExpected = expected.filter(col => !mapping[col]);
+          if (unmappedExpected.length > 0) {
+            const patternMapping = generatePatternBasedMapping(headers, unmappedExpected);
+            Object.assign(mapping, patternMapping);
+          }
+          
+          return mapping;
+        }
+      } catch (error) {
+        console.warn('AI column mapping failed, falling back to pattern matching:', error);
+      }
+    }
+    
+    // Fallback to pattern-based mapping
+    return generatePatternBasedMapping(headers, expected);
+  }, []);
+
+  // Pattern-based column mapping (original logic)
+  const generatePatternBasedMapping = (headers: string[], expectedColumns: string[]): ColumnMapping => {
+    const mapping: ColumnMapping = {};
+    
+    expectedColumns.forEach(expectedCol => {
       // Direct match
       const directMatch = headers.find(h => h.toLowerCase() === expectedCol);
       if (directMatch) {
@@ -65,26 +103,26 @@ const DataIngestionTab = () => {
 
       // Common variations
       const variations: Record<string, string[]> = {
-        clientid: ['id', 'client_id', 'client id', 'cid'],
-        clientname: ['name', 'client_name', 'client name', 'company'],
-        prioritylevel: ['priority', 'priority_level', 'level', 'importance'],
-        requestedtaskids: ['tasks', 'task_ids', 'task ids', 'requested_tasks'],
-        grouptag: ['group', 'group_tag', 'category', 'tag'],
-        attributesjson: ['attributes', 'attributes_json', 'metadata', 'properties'],
-        workerid: ['id', 'worker_id', 'employee_id', 'emp_id'],
-        workername: ['name', 'worker_name', 'employee_name', 'emp_name'],
-        skills: ['skill', 'skill_set', 'capabilities', 'expertise'],
-        availableslots: ['slots', 'available_slots', 'availability', 'phases'],
-        maxloadperphase: ['max_load', 'maxload', 'capacity', 'workload'],
-        workergroup: ['group', 'worker_group', 'team', 'department'],
-        qualificationlevel: ['level', 'qualification', 'experience', 'seniority'],
-        taskid: ['id', 'task_id', 'job_id', 'work_id'],
-        taskname: ['name', 'task_name', 'job_name', 'title'],
-        category: ['type', 'category', 'classification', 'domain'],
-        duration: ['time', 'duration', 'length', 'period'],
-        requiredskills: ['skills', 'required_skills', 'prerequisites', 'expertise'],
-        preferredphases: ['phases', 'preferred_phases', 'timeline', 'schedule'],
-        maxconcurrent: ['concurrent', 'max_concurrent', 'parallel', 'simultaneous']
+        ClientID: ['id', 'client_id', 'client id', 'cid', 'clientid'],
+        ClientName: ['name', 'client_name', 'client name', 'company', 'clientname'],
+        PriorityLevel: ['priority', 'priority_level', 'level', 'importance', 'prioritylevel'],
+        RequestedTaskIDs: ['tasks', 'task_ids', 'task ids', 'requested_tasks', 'requestedtaskids'],
+        GroupTag: ['group', 'group_tag', 'category', 'tag', 'grouptag'],
+        AttributesJSON: ['attributes', 'attributes_json', 'metadata', 'properties', 'attributesjson'],
+        WorkerID: ['id', 'worker_id', 'employee_id', 'emp_id', 'workerid'],
+        WorkerName: ['name', 'worker_name', 'employee_name', 'emp_name', 'workername'],
+        Skills: ['skill', 'skill_set', 'capabilities', 'expertise', 'skills'],
+        AvailableSlots: ['slots', 'available_slots', 'availability', 'phases', 'availableslots'],
+        MaxLoadPerPhase: ['max_load', 'maxload', 'capacity', 'workload', 'maxloadperphase'],
+        WorkerGroup: ['group', 'worker_group', 'team', 'department', 'workergroup'],
+        QualificationLevel: ['level', 'qualification', 'experience', 'seniority', 'qualificationlevel'],
+        TaskID: ['id', 'task_id', 'job_id', 'work_id', 'taskid'],
+        TaskName: ['name', 'task_name', 'job_name', 'title', 'taskname'],
+        Category: ['type', 'category', 'classification', 'domain'],
+        Duration: ['time', 'duration', 'length', 'period'],
+        RequiredSkills: ['skills', 'required_skills', 'prerequisites', 'expertise', 'requiredskills'],
+        PreferredPhases: ['phases', 'preferred_phases', 'timeline', 'schedule', 'preferredphases'],
+        MaxConcurrent: ['concurrent', 'max_concurrent', 'parallel', 'simultaneous', 'maxconcurrent']
       };
 
       const variationsForCol = variations[expectedCol] || [];
@@ -165,12 +203,15 @@ const DataIngestionTab = () => {
     try {
       const { headers, data } = await parseFile(file);
       
-      // Generate AI column mapping
-      const mapping = generateColumnMapping(headers, type);
+      // Generate AI-enhanced column mapping
+      const mapping = await generateColumnMapping(headers, type);
+      console.log(`Generated mapping for ${type}:`, mapping);
+      console.log(`Original headers:`, headers);
+      console.log(`Sample original data:`, data[0]);
       setColumnMappings(prev => ({ ...prev, [type]: mapping }));
 
       // Transform data using the mapping
-      const transformedData = data.map((row) => {
+      const transformedData = data.map((row, index) => {
         const transformed: DataRow = {};
         
         Object.entries(mapping).forEach(([expectedCol, actualCol]) => {
@@ -185,6 +226,9 @@ const DataIngestionTab = () => {
           transformed[expectedCol] = value;
         });
 
+        if (index === 0) {
+          console.log(`Sample transformed ${type} data:`, transformed);
+        }
         return transformed;
       });
 
@@ -211,7 +255,7 @@ const DataIngestionTab = () => {
         variant: "destructive"
       });
     }
-  }, [setClients, setWorkers, setTasks, toast]);
+  }, [setClients, setWorkers, setTasks, toast, generateColumnMapping]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -232,6 +276,7 @@ const DataIngestionTab = () => {
 
   return (
     <div className="space-y-6">
+
       {/* Upload Section */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {['clients', 'workers', 'tasks'].map((type) => (
@@ -308,15 +353,36 @@ const DataIngestionTab = () => {
             </TabsList>
             
             <TabsContent value="clients" className="mt-4">
-              <DataGrid data={clients as unknown as DataRow[]} type="clients" />
+              {clients.length > 0 ? (
+                <DataGrid data={clients as unknown as DataRow[]} type="clients" />
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-slate-400">No client data uploaded yet.</p>
+                  <p className="text-sm text-slate-500 mt-2">Upload a CSV or XLSX file to get started.</p>
+                </div>
+              )}
             </TabsContent>
             
             <TabsContent value="workers" className="mt-4">
-              <DataGrid data={workers as unknown as DataRow[]} type="workers" />
+              {workers.length > 0 ? (
+                <DataGrid data={workers as unknown as DataRow[]} type="workers" />
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-slate-400">No worker data uploaded yet.</p>
+                  <p className="text-sm text-slate-500 mt-2">Upload a CSV or XLSX file to get started.</p>
+                </div>
+              )}
             </TabsContent>
             
             <TabsContent value="tasks" className="mt-4">
-              <DataGrid data={tasks as unknown as DataRow[]} type="tasks" />
+              {tasks.length > 0 ? (
+                <DataGrid data={tasks as unknown as DataRow[]} type="tasks" />
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-slate-400">No task data uploaded yet.</p>
+                  <p className="text-sm text-slate-500 mt-2">Upload a CSV or XLSX file to get started.</p>
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         </CardContent>

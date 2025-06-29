@@ -7,6 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { AlertCircle, CheckCircle, Search, Brain, Zap, Wand2, Filter } from 'lucide-react';
 import { useData } from '@/contexts/DataContext';
 import { useToast } from '@/hooks/use-toast';
+import aiService, { SearchCondition } from '@/lib/ai/ai-service';
 
 interface ValidationError {
   type: string;
@@ -31,13 +32,6 @@ interface AiSuggestion {
   message: string;
   action: string;
   data: Record<string, unknown>;
-}
-
-interface SearchCondition {
-  entity: string;
-  field: string;
-  operator: string;
-  value: string | number | string[] | number[];
 }
 
 const ValidationTab = () => {
@@ -256,15 +250,62 @@ const ValidationTab = () => {
 
   const executeSearch = (conditions: SearchCondition[]): SearchResult[] => {
     const results: SearchResult[] = [];
+    console.log('Executing search with conditions:', conditions);
 
     conditions.forEach(condition => {
+      console.log('Processing condition:', condition);
+      // Handle "all" queries - return all entities of the specified type
+      if (condition.field === 'all' && condition.operator === 'all') {
+        if (condition.entity === 'clients') {
+          clients.forEach(client => {
+            results.push({
+              ClientID: client.ClientID,
+              ClientName: client.ClientName,
+              PriorityLevel: client.PriorityLevel,
+              RequestedTaskIDs: client.RequestedTaskIDs,
+              GroupTag: client.GroupTag
+            });
+          });
+        } else if (condition.entity === 'workers') {
+          console.log('Processing all workers, available workers:', workers.length);
+          workers.forEach(worker => {
+            console.log('Adding worker to results:', worker);
+            results.push({
+              WorkerID: worker.WorkerID,
+              WorkerName: worker.WorkerName,
+              Skills: worker.Skills,
+              AvailableSlots: worker.AvailableSlots,
+              MaxLoadPerPhase: worker.MaxLoadPerPhase,
+              WorkerGroup: worker.WorkerGroup,
+              QualificationLevel: worker.QualificationLevel
+            });
+          });
+        } else if (condition.entity === 'tasks') {
+          tasks.forEach(task => {
+            results.push({
+              TaskID: task.TaskID,
+              TaskName: task.TaskName,
+              Category: task.Category,
+              Duration: task.Duration,
+              RequiredSkills: task.RequiredSkills,
+              PreferredPhases: task.PreferredPhases,
+              MaxConcurrent: task.MaxConcurrent
+            });
+          });
+        }
+        return; // Skip the rest of the processing for this condition
+      }
+
       if (condition.entity === 'clients' || condition.entity === 'all') {
+        console.log('Processing clients, available clients:', clients.length);
         clients.forEach(client => {
           let matches = false;
+          console.log('Checking client:', client.ClientName, 'Priority:', client.PriorityLevel);
 
           if (condition.field === 'PriorityLevel') {
-            const clientPriority = client.PriorityLevel;
+            const clientPriority = Number(client.PriorityLevel);
             const conditionValue = Number(condition.value);
+            console.log(`Comparing client priority ${clientPriority} ${condition.operator} ${conditionValue}`);
             
             switch (condition.operator) {
               case '=':
@@ -283,11 +324,13 @@ const ValidationTab = () => {
                 matches = clientPriority <= conditionValue;
                 break;
             }
+            console.log('Priority match result:', matches);
           } else if (condition.field === 'Name' && condition.operator === 'contains') {
             matches = client.ClientName.toLowerCase().includes(String(condition.value).toLowerCase());
           }
 
           if (matches) {
+            console.log('Client matched, adding to results:', client.ClientName);
             results.push({
               ClientID: client.ClientID,
               ClientName: client.ClientName,
@@ -300,11 +343,13 @@ const ValidationTab = () => {
       }
 
       if (condition.entity === 'workers' || condition.entity === 'all') {
+        console.log('Processing workers search, available workers:', workers.length);
         workers.forEach(worker => {
           let matches = false;
+          console.log('Checking worker:', worker.WorkerName, 'Skills:', worker.Skills);
 
-          if (condition.field === 'Skills' && condition.operator === 'includes') {
-            const workerSkills = worker.Skills.toLowerCase().split(',').map(s => s.trim());
+          if (condition.field === 'Skills' && (condition.operator === 'includes' || condition.operator === 'contains')) {
+            const workerSkills = String(worker.Skills || '').toLowerCase().split(',').map(s => s.trim());
             const searchSkills = Array.isArray(condition.value) ? 
               condition.value.map((s: string | number) => String(s).toLowerCase()) : 
               [String(condition.value).toLowerCase()];
@@ -312,13 +357,64 @@ const ValidationTab = () => {
             matches = searchSkills.some(skill => 
               workerSkills.some(workerSkill => workerSkill.includes(skill))
             );
+            console.log('Skills match result:', matches);
+          } else if (condition.field === 'QualificationLevel' && condition.operator === '=') {
+            matches = String(worker.QualificationLevel || '').toLowerCase() === String(condition.value).toLowerCase();
+            console.log('QualificationLevel match result:', matches);
+          } else if (condition.field === 'AvailableSlots') {
+            const availableSlots = Number(worker.AvailableSlots);
+            const conditionValue = Number(condition.value);
+            
+            switch (condition.operator) {
+              case '=':
+                matches = availableSlots === conditionValue;
+                break;
+              case '>':
+                matches = availableSlots > conditionValue;
+                break;
+              case '<':
+                matches = availableSlots < conditionValue;
+                break;
+              case '>=':
+                matches = availableSlots >= conditionValue;
+                break;
+              case '<=':
+                matches = availableSlots <= conditionValue;
+                break;
+            }
+            console.log('AvailableSlots match result:', matches);
+          } else if (condition.field === 'MaxLoadPerPhase') {
+            const maxLoad = Number(worker.MaxLoadPerPhase);
+            const conditionValue = Number(condition.value);
+            
+            switch (condition.operator) {
+              case '=':
+                matches = maxLoad === conditionValue;
+                break;
+              case '>':
+                matches = maxLoad > conditionValue;
+                break;
+              case '<':
+                matches = maxLoad < conditionValue;
+                break;
+              case '>=':
+                matches = maxLoad >= conditionValue;
+                break;
+              case '<=':
+                matches = maxLoad <= conditionValue;
+                break;
+            }
+            console.log('MaxLoadPerPhase match result:', matches);
           } else if (condition.field === 'WorkerGroup' && condition.operator === '=') {
-            matches = worker.WorkerGroup.toLowerCase() === String(condition.value).toLowerCase();
+            matches = String(worker.WorkerGroup || '').toLowerCase() === String(condition.value).toLowerCase();
+            console.log('WorkerGroup match result:', matches);
           } else if (condition.field === 'Name' && condition.operator === 'contains') {
-            matches = worker.WorkerName.toLowerCase().includes(String(condition.value).toLowerCase());
+            matches = String(worker.WorkerName || '').toLowerCase().includes(String(condition.value).toLowerCase());
+            console.log('Name match result:', matches);
           }
 
           if (matches) {
+            console.log('Worker matched, adding to results:', worker.WorkerName);
             results.push({
               WorkerID: worker.WorkerID,
               WorkerName: worker.WorkerName,
@@ -385,8 +481,16 @@ const ValidationTab = () => {
             } catch {
               // Skip malformed data
             }
-          } else if (condition.field === 'Category' && condition.operator === '=') {
-            matches = task.Category.toLowerCase() === String(condition.value).toLowerCase();
+          } else if (condition.field === 'Category' && (condition.operator === '=' || condition.operator === 'contains')) {
+            if (condition.operator === '=') {
+              matches = task.Category.toLowerCase() === String(condition.value).toLowerCase();
+            } else {
+              matches = task.Category.toLowerCase().includes(String(condition.value).toLowerCase());
+            }
+          } else if (condition.field === 'RequiredSkills' && condition.operator === 'contains') {
+            const taskSkills = task.RequiredSkills.toLowerCase().split(',').map(s => s.trim());
+            const searchValue = String(condition.value).toLowerCase();
+            matches = taskSkills.some(skill => skill.includes(searchValue));
           } else if (condition.field === 'MaxConcurrent') {
             const taskConcurrent = task.MaxConcurrent;
             const conditionValue = Number(condition.value);
@@ -437,7 +541,7 @@ const ValidationTab = () => {
     );
   };
 
-  const handleNaturalLanguageSearch = () => {
+  const handleNaturalLanguageSearch = async () => {
     if (!naturalLanguageSearch.trim()) {
       toast({
         title: "Search query required",
@@ -447,149 +551,115 @@ const ValidationTab = () => {
       return;
     }
 
-    const conditions = parseNaturalLanguageQuery(naturalLanguageSearch);
-    const results = executeSearch(conditions);
-    setSearchResults(results);
-
-    toast({
-      title: "Search completed",
-      description: `Found ${results.length} results for your query.`,
-    });
+    try {
+      console.log('Processing natural language search:', naturalLanguageSearch);
+      
+      // Use AI service for natural language processing
+      const dataContext = { clients, workers, tasks };
+      const aiResponse = await aiService.processNaturalLanguageQuery(naturalLanguageSearch, dataContext);
+      
+      console.log('AI Response:', aiResponse);
+      
+      let conditions: SearchCondition[] = [];
+      
+      if (aiResponse.success && aiResponse.data && Array.isArray(aiResponse.data)) {
+        conditions = aiResponse.data;
+        console.log('Using AI-generated conditions:', conditions);
+      } else {
+        // Fallback to pattern matching
+        console.log('AI failed, using pattern matching fallback');
+        conditions = parseNaturalLanguageQuery(naturalLanguageSearch);
+        console.log('Pattern-based conditions:', conditions);
+      }
+      
+      if (conditions.length === 0) {
+        toast({
+          title: "No search conditions found",
+          description: "Could not understand the search query. Try using simpler terms like 'high priority clients' or 'workers with JavaScript skills'.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Execute search with the conditions
+      const results = executeSearch(conditions);
+      console.log('Search results:', results);
+      
+      setSearchResults(results);
+      
+      toast({
+        title: "Search completed",
+        description: `Found ${results.length} result(s) for "${naturalLanguageSearch}"`,
+      });
+      
+    } catch (error) {
+      console.error('Natural language search failed:', error);
+      
+      // Try pattern matching as fallback
+      try {
+        console.log('Attempting pattern matching fallback...');
+        const conditions = parseNaturalLanguageQuery(naturalLanguageSearch);
+        
+        if (conditions.length > 0) {
+          const results = executeSearch(conditions);
+          setSearchResults(results);
+          
+          toast({
+            title: "Search completed (pattern matching)",
+            description: `Found ${results.length} result(s) using pattern matching`,
+          });
+        } else {
+          throw new Error('No patterns matched');
+        }
+      } catch (fallbackError) {
+        console.error('Pattern matching fallback also failed:', fallbackError);
+        toast({
+          title: "Search failed",
+          description: "Could not process your search query. Please try rephrasing or use simpler terms.",
+          variant: "destructive"
+        });
+      }
+    }
   };
 
   // Natural language data modification
   const handleNaturalLanguageModification = async () => {
     setIsModifying(true);
-    const input = naturalLanguageModification.toLowerCase();
+    const input = naturalLanguageModification;
     
     try {
-      // Parse modification commands
+      // First try AI-powered modification
+      const allData = [...clients, ...workers, ...tasks];
+      const aiResponse = await aiService.processDataModification(input, allData as unknown as Record<string, unknown>[]);
+      
       let modified = false;
-
-      // Priority modifications
-      if (input.includes('set priority') || input.includes('change priority')) {
-        const priorityMatch = input.match(/(?:set|change)\s+priority\s+(?:of\s+)?([a-zA-Z\s]+)\s+to\s+(\d+)/);
-        if (priorityMatch) {
-          const clientName = priorityMatch[1].trim();
-          const newPriority = parseInt(priorityMatch[2]);
+      
+      if (aiResponse.success && aiResponse.data && !(aiResponse.data as {error?: string}).error) {
+        const modification = aiResponse.data as {action: string, conditions: unknown[], changes: Record<string, unknown>, affected_count?: number};
+        
+        // Apply AI-suggested modifications
+        if (modification.action === 'update' && modification.conditions && modification.changes) {
+          // Apply the modification based on AI instructions
+          modified = await applyAiModification(modification as Record<string, unknown>);
           
-          const updatedClients = clients.map(client => {
-            if (client.ClientName.toLowerCase().includes(clientName)) {
-              return { ...client, PriorityLevel: newPriority };
-            }
-            return client;
-          });
-          setClients(updatedClients);
-          modified = true;
+          if (modified) {
+            toast({
+              title: "AI Modification Applied",
+              description: `Successfully modified ${modification.affected_count || 'some'} records using AI processing`,
+            });
+          }
         }
       }
-
-      // Skill additions
-      if (input.includes('add skill') || input.includes('give skill')) {
-        const skillMatch = input.match(/(?:add|give)\s+skill\s+([a-zA-Z]+)\s+to\s+(?:worker\s+)?([a-zA-Z\s]+)/);
-        if (skillMatch) {
-          const skill = skillMatch[1].trim();
-          const workerName = skillMatch[2].trim();
-          
-          const updatedWorkers = workers.map(worker => {
-            if (worker.WorkerName.toLowerCase().includes(workerName)) {
-              const currentSkills = worker.Skills;
-              if (!currentSkills.toLowerCase().includes(skill.toLowerCase())) {
-                return { ...worker, Skills: `${currentSkills}, ${skill}` };
-              }
-            }
-            return worker;
+      
+      // Fallback to pattern matching if AI didn't work
+      if (!modified) {
+        modified = await applyPatternBasedModification(input.toLowerCase());
+        
+        if (modified) {
+          toast({
+            title: "Pattern-based Modification Applied",
+            description: "Successfully applied modification using pattern matching (consider adding AI API keys for better results)",
           });
-          setWorkers(updatedWorkers);
-          modified = true;
-        }
-      }
-
-      // Duration modifications
-      if (input.includes('set duration') || input.includes('change duration')) {
-        const durationMatch = input.match(/(?:set|change)\s+duration\s+(?:of\s+)?(?:task\s+)?([a-zA-Z\d\s]+)\s+to\s+(\d+)/);
-        if (durationMatch) {
-          const taskIdentifier = durationMatch[1].trim();
-          const newDuration = parseInt(durationMatch[2]);
-          
-          const updatedTasks = tasks.map(task => {
-            if (task.TaskName.toLowerCase().includes(taskIdentifier) || 
-                task.TaskID.toLowerCase().includes(taskIdentifier)) {
-              return { ...task, Duration: newDuration };
-            }
-            return task;
-          });
-          setTasks(updatedTasks);
-          modified = true;
-        }
-      }
-
-      // Phase modifications
-      if (input.includes('move') && input.includes('phase')) {
-        const phaseMatch = input.match(/move\s+(?:task\s+)?([a-zA-Z\d\s]+)\s+to\s+phase\s+(\d+)/);
-        if (phaseMatch) {
-          const taskIdentifier = phaseMatch[1].trim();
-          const newPhase = parseInt(phaseMatch[2]);
-          
-          const updatedTasks = tasks.map(task => {
-            if (task.TaskName.toLowerCase().includes(taskIdentifier) || 
-                task.TaskID.toLowerCase().includes(taskIdentifier)) {
-              return { ...task, PreferredPhases: `[${newPhase}]` };
-            }
-            return task;
-          });
-          setTasks(updatedTasks);
-          modified = true;
-        }
-      }
-
-      // Worker group reassignment
-      if (input.includes('move') && (input.includes('senior') || input.includes('junior') || input.includes('mid'))) {
-        const groupMatch = input.match(/move\s+(?:worker\s+)?([a-zA-Z\s]+)\s+to\s+(senior|junior|mid)/);
-        if (groupMatch) {
-          const workerName = groupMatch[1].trim();
-          const newGroup = groupMatch[2];
-          
-          const updatedWorkers = workers.map(worker => {
-            if (worker.WorkerName.toLowerCase().includes(workerName)) {
-              return { ...worker, WorkerGroup: newGroup };
-            }
-            return worker;
-          });
-          setWorkers(updatedWorkers);
-          modified = true;
-        }
-      }
-
-      // MaxLoad adjustments
-      if (input.includes('set load') || input.includes('change load')) {
-        const loadMatch = input.match(/(?:set|change)\s+(?:max\s+)?load\s+(?:of\s+)?(?:worker\s+)?([a-zA-Z\s]+)\s+to\s+(\d+)/);
-        if (loadMatch) {
-          const workerName = loadMatch[1].trim();
-          const newLoad = parseInt(loadMatch[2]);
-          
-          const updatedWorkers = workers.map(worker => {
-            if (worker.WorkerName.toLowerCase().includes(workerName)) {
-              return { ...worker, MaxLoadPerPhase: newLoad };
-            }
-            return worker;
-          });
-          setWorkers(updatedWorkers);
-          modified = true;
-        }
-      }
-
-      // Bulk operations
-      if (input.includes('all') && input.includes('priority')) {
-        const bulkPriorityMatch = input.match(/set\s+all\s+(?:client\s+)?priorities\s+to\s+(\d+)/);
-        if (bulkPriorityMatch) {
-          const newPriority = parseInt(bulkPriorityMatch[1]);
-          const updatedClients = clients.map(client => ({
-            ...client,
-            PriorityLevel: newPriority
-          }));
-          setClients(updatedClients);
-          modified = true;
         }
       }
 
@@ -622,10 +692,176 @@ const ValidationTab = () => {
     }
   };
 
+  // Helper function to apply AI-powered modifications
+  const applyAiModification = async (modification: Record<string, unknown>): Promise<boolean> => {
+    const { action, conditions, changes } = modification;
+    const conditionsArray = conditions as Record<string, unknown>[];
+    
+    if (action !== 'update' || !conditionsArray || !changes) {
+      return false;
+    }
+    
+    let modified = false;
+    
+    // Apply modifications to clients
+    if (conditionsArray.some((c: Record<string, unknown>) => c.field === 'ClientID' || c.field === 'ClientName' || c.field === 'PriorityLevel')) {
+      const updatedClients = clients.map(client => {
+        if (matchesConditions(client as unknown as Record<string, unknown>, conditionsArray)) {
+          modified = true;
+          return { ...client, ...changes };
+        }
+        return client;
+      });
+      setClients(updatedClients);
+    }
+    
+    // Apply modifications to workers
+    if (conditionsArray.some((c: Record<string, unknown>) => c.field === 'WorkerID' || c.field === 'WorkerName' || c.field === 'Skills')) {
+      const updatedWorkers = workers.map(worker => {
+        if (matchesConditions(worker as unknown as Record<string, unknown>, conditionsArray)) {
+          modified = true;
+          return { ...worker, ...changes };
+        }
+        return worker;
+      });
+      setWorkers(updatedWorkers);
+    }
+    
+    // Apply modifications to tasks
+    if (conditionsArray.some((c: Record<string, unknown>) => c.field === 'TaskID' || c.field === 'TaskName' || c.field === 'Duration')) {
+      const updatedTasks = tasks.map(task => {
+        if (matchesConditions(task as unknown as Record<string, unknown>, conditionsArray)) {
+          modified = true;
+          return { ...task, ...changes };
+        }
+        return task;
+      });
+      setTasks(updatedTasks);
+    }
+    
+    return modified;
+  };
+
+  // Helper function to check if an item matches conditions
+  const matchesConditions = (item: Record<string, unknown>, conditions: Record<string, unknown>[]): boolean => {
+    return conditions.every(condition => {
+      const { field, operator, value } = condition;
+      const itemValue = item[field as string];
+      
+      switch (operator) {
+        case '=':
+          return itemValue === value;
+        case 'contains':
+          return String(itemValue).toLowerCase().includes(String(value).toLowerCase());
+        case '>':
+          return Number(itemValue) > Number(value);
+        case '<':
+          return Number(itemValue) < Number(value);
+        case '>=':
+          return Number(itemValue) >= Number(value);
+        case '<=':
+          return Number(itemValue) <= Number(value);
+        default:
+          return false;
+      }
+    });
+  };
+
+  // Helper function for pattern-based modifications (existing logic)
+  const applyPatternBasedModification = async (input: string): Promise<boolean> => {
+    let modified = false;
+
+    // Priority modifications
+    if (input.includes('set priority') || input.includes('change priority')) {
+      const priorityMatch = input.match(/(?:set|change)\s+priority\s+(?:of\s+)?([a-zA-Z\s]+)\s+to\s+(\d+)/);
+      if (priorityMatch) {
+        const clientName = priorityMatch[1].trim();
+        const newPriority = parseInt(priorityMatch[2]);
+        
+        const updatedClients = clients.map(client => {
+          if (client.ClientName.toLowerCase().includes(clientName)) {
+            return { ...client, PriorityLevel: newPriority };
+          }
+          return client;
+        });
+        setClients(updatedClients);
+        modified = true;
+      }
+    }
+
+    // Skill additions
+    if (input.includes('add skill') || input.includes('give skill')) {
+      const skillMatch = input.match(/(?:add|give)\s+skill\s+([a-zA-Z]+)\s+to\s+(?:worker\s+)?([a-zA-Z\s]+)/);
+      if (skillMatch) {
+        const skill = skillMatch[1].trim();
+        const workerName = skillMatch[2].trim();
+        
+        const updatedWorkers = workers.map(worker => {
+          if (worker.WorkerName.toLowerCase().includes(workerName)) {
+            const currentSkills = worker.Skills;
+            if (!currentSkills.toLowerCase().includes(skill.toLowerCase())) {
+              return { ...worker, Skills: `${currentSkills}, ${skill}` };
+            }
+          }
+          return worker;
+        });
+        setWorkers(updatedWorkers);
+        modified = true;
+      }
+    }
+
+    // Duration modifications
+    if (input.includes('set duration') || input.includes('change duration')) {
+      const durationMatch = input.match(/(?:set|change)\s+duration\s+(?:of\s+)?(?:task\s+)?([a-zA-Z\d\s]+)\s+to\s+(\d+)/);
+      if (durationMatch) {
+        const taskIdentifier = durationMatch[1].trim();
+        const newDuration = parseInt(durationMatch[2]);
+        
+        const updatedTasks = tasks.map(task => {
+          if (task.TaskName.toLowerCase().includes(taskIdentifier) || 
+              task.TaskID.toLowerCase().includes(taskIdentifier)) {
+            return { ...task, Duration: newDuration };
+          }
+          return task;
+        });
+        setTasks(updatedTasks);
+        modified = true;
+      }
+    }
+
+    // Bulk operations
+    if (input.includes('all') && input.includes('priority')) {
+      const bulkPriorityMatch = input.match(/set\s+all\s+(?:client\s+)?priorities\s+to\s+(\d+)/);
+      if (bulkPriorityMatch) {
+        const newPriority = parseInt(bulkPriorityMatch[1]);
+        const updatedClients = clients.map(client => ({
+          ...client,
+          PriorityLevel: newPriority
+        }));
+        setClients(updatedClients);
+        modified = true;
+      }
+    }
+
+    return modified;
+  };
+
   const runValidations = useCallback(async () => {
     setIsValidating(true);
     setValidationProgress(0);
     const errors: ValidationError[] = [];
+
+    // Early return if no data to validate
+    if (clients.length === 0 && workers.length === 0 && tasks.length === 0) {
+      setValidationErrors([]);
+      setIsValidating(false);
+      toast({
+        title: "No data to validate",
+        description: "Please upload some data first in the Data Ingestion tab.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     // Simulate progress updates
     const updateProgress = (progress: number) => {
@@ -1115,6 +1351,52 @@ const ValidationTab = () => {
         });
       }
     });
+
+    // AI-Powered Validation Enhancement
+    try {
+      if (aiService.isAvailable()) {
+        updateProgress(96);
+        
+        // Get AI validation suggestions for each entity type
+        const [clientSuggestions, workerSuggestions, taskSuggestions] = await Promise.all([
+          aiService.validateDataWithAI(clients as unknown as Record<string, unknown>[], 'clients'),
+          aiService.validateDataWithAI(workers as unknown as Record<string, unknown>[], 'workers'),
+          aiService.validateDataWithAI(tasks as unknown as Record<string, unknown>[], 'tasks')
+        ]);
+
+        // Convert AI suggestions to validation errors
+        [...clientSuggestions, ...workerSuggestions, ...taskSuggestions].forEach(suggestion => {
+          errors.push({
+            type: suggestion.type,
+            message: `AI: ${suggestion.message}`,
+            entity: suggestion.field || 'AI Analysis',
+            field: suggestion.field,
+            severity: suggestion.severity === 'info' ? 'warning' : suggestion.severity
+          });
+        });
+
+        updateProgress(98);
+
+        // Get AI rule suggestions for enhanced validation
+        const aiRuleSuggestions = await aiService.generateRuleSuggestions({ clients, workers, tasks });
+        
+        // Add AI rule suggestions as validation warnings
+        aiRuleSuggestions.forEach(ruleSuggestion => {
+          if (ruleSuggestion.confidence > 0.7) {
+            errors.push({
+              type: 'ai_rule_suggestion',
+              message: `AI suggests: ${ruleSuggestion.description} (${Math.round(ruleSuggestion.confidence * 100)}% confidence)`,
+              entity: 'AI Rule Analysis',
+              severity: 'warning'
+            });
+          }
+        });
+
+        updateProgress(99);
+      }
+    } catch (error) {
+      console.warn('AI validation failed, continuing with standard validation:', error);
+    }
 
     updateProgress(100);
 

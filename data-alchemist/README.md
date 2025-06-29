@@ -1,279 +1,309 @@
-# Data Alchemist - AI-Powered Resource Allocation Configurator
+# 🧪 Data Alchemist - AI-Powered Resource Allocation Configurator
 
-<div align="center">
+> Transform messy spreadsheets into clean, validated data with intelligent AI assistance for resource allocation planning.
 
-![Data Alchemist Screenshot](public/image.png)
+[![Next.js](https://img.shields.io/badge/Next.js-15.3.4-black?logo=next.js)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript)](https://www.typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC?logo=tailwind-css)](https://tailwindcss.com/)
+[![AI Powered](https://img.shields.io/badge/AI-Powered-brightgreen?logo=sparkles)](https://github.com)
 
-**AI-Powered Resource Allocation Configurator**  
-*Transform messy spreadsheets into clean, validated data ready for resource allocation systems*
+## 🌟 Features
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-blue?style=for-the-badge&logo=vercel)](https://data-alchemist-6mco.vercel.app/)
-[![GitHub](https://img.shields.io/badge/GitHub-Repository-black?style=for-the-badge&logo=github)](https://github.com/hmtgit7/data-alchemist)
-[![Tech Stack](https://img.shields.io/badge/Tech%20Stack-Next.js%20%7C%20React%20%7C%20TypeScript-blue?style=for-the-badge)](https://nextjs.org/)
+### 🤖 AI-Powered Core Features
 
-</div>
+- **🔍 Natural Language Search**: Query your data using plain English
+- **✏️ Natural Language Data Modification**: Modify data with simple commands
+- **📋 Intelligent Rule Generation**: AI suggests optimal allocation rules
+- **🧠 Smart Data Validation**: AI detects complex patterns and anomalies
+- **🗂️ AI Column Mapping**: Automatically maps CSV columns to correct fields
+- **💡 Intelligent Suggestions**: Context-aware recommendations for data improvement
 
----
+### 📊 Data Management
 
-## 🚀 **Live Demo**
-**🌐 [https://data-alchemist-6mco.vercel.app/](https://data-alchemist-6mco.vercel.app/)**
+- **📁 Multi-Format Support**: CSV and XLSX file processing
+- **✏️ Inline Editing**: Edit data directly in responsive tables
+- **🔄 Real-time Validation**: Instant feedback on data quality
+- **📱 Mobile Responsive**: Works seamlessly on all devices
 
----
+### ⚙️ Business Rules Engine
 
-## 📋 **Assignment Overview**
-This project was developed for the **Digitalyz Software Engineering Intern** position. The assignment required building an AI-enabled Next.js web application that transforms messy spreadsheets into clean, validated data ready for resource allocation systems.
+- **🤝 Co-run Rules**: Tasks that must execute together
+- **⚖️ Load Balancing**: Worker capacity management
+- **📅 Phase Windows**: Timing constraints for tasks
+- **🎯 Priority Management**: Client importance handling
+- **🔧 Custom Rules**: Flexible rule configuration
 
-### **Key Requirements Met:**
-- ✅ **Data Ingestion**: CSV/XLSX upload with AI column mapping
-- ✅ **Validation**: Comprehensive data validation with real-time feedback
-- ✅ **Rules Engine**: Business rules creation and management
-- ✅ **Prioritization**: Weight-based allocation criteria configuration
-- ✅ **Export**: Clean data and configuration export
-- ✅ **AI Features**: Natural language search, rule recommendations, error correction
+### 🎨 Modern UI/UX
 
----
+- **🌙 Dark Theme**: Beautiful, modern interface
+- **⚡ Smooth Animations**: Framer Motion powered transitions
+- **📱 Mobile First**: Responsive design for all devices
+- **🎯 Accessibility**: WCAG compliant components
 
-## 🎯 **Project Features**
+## 🚀 Quick Start
 
-### **Core Functionality**
-- **Multi-format File Upload**: Support for both CSV and XLSX files
-- **AI-Powered Column Mapping**: Automatically maps incorrectly named headers to expected data structure
-- **Real-time Data Validation**: Comprehensive validation with immediate feedback
-- **Inline Data Editing**: Edit data directly in the grid with validation
-- **Business Rules Engine**: Create and manage complex business rules
-- **Priority Configuration**: Set weights for different allocation criteria
-- **Export Functionality**: Download cleaned data and configuration files
+### Prerequisites
 
-### **AI-Enhanced Features**
-- **Natural Language Search**: Search data using plain English queries
-- **AI Rule Recommendations**: Get intelligent suggestions for business rules
-- **Natural Language Rule Creation**: Create rules by describing them in plain English
-- **AI-Powered Error Correction**: Get suggestions for fixing validation errors
-- **Smart Column Mapping**: Automatically maps various column name formats
+- Node.js 18+ and npm
+- Modern web browser
 
----
+### Installation
 
-## 🛠️ **Tech Stack**
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd data-alchemist
+   ```
 
-- **Frontend**: Next.js 15, React 19, TypeScript
-- **UI Components**: Radix UI, Tailwind CSS
-- **File Processing**: XLSX, PapaParse
-- **Data Visualization**: Recharts
-- **State Management**: React Context API
-- **Form Handling**: React Hook Form, Zod validation
-- **Deployment**: Vercel
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
----
+3. **Set up AI services** (Optional but recommended)
+   ```bash
+   cp .env.example .env.local
+   # Add your AI API keys (see AI Setup section)
+   ```
 
-## 📦 **Installation**
+4. **Start development server**
+   ```bash
+   npm run dev
+   ```
 
-1. Clone the repository:
-```bash
-git clone https://github.com/hmtgit7/data-alchemist.git
-cd data-alchemist
+5. **Open in browser**
+   ```
+   http://localhost:3000
+   ```
+
+## 🧠 AI Setup & Configuration
+
+### 🆓 Free AI Options
+
+The app works with multiple AI providers with generous free tiers:
+
+#### Option 1: Google Gemini (Recommended)
+- **Free Tier**: 15 requests/minute forever
+- **Setup**: Visit [ai.google.dev](https://ai.google.dev/)
+- **Best For**: Complex reasoning and rule generation
+
+#### Option 2: Groq (Fast Inference)
+- **Free Tier**: Fast inference with rate limits
+- **Setup**: Visit [console.groq.com](https://console.groq.com/)
+- **Best For**: Quick responses and real-time processing
+
+#### Option 3: Transformers.js (No Setup Required)
+- **100% Free**: Runs entirely in browser
+- **No API Keys**: Works offline
+- **Best For**: Privacy-conscious users
+
+### Environment Variables
+
+Create `.env.local` in the project root:
+
+```env
+# Google Gemini API Key (Free tier: 15 requests/minute)
+NEXT_PUBLIC_GEMINI_API_KEY=your_gemini_api_key_here
+
+# Groq API Key (Free tier with fast inference)
+NEXT_PUBLIC_GROQ_API_KEY=your_groq_api_key_here
 ```
 
-2. Install dependencies:
-```bash
-npm install
+> **Note**: If no API keys are provided, the app automatically falls back to Transformers.js for 100% free operation.
+
+## 📖 Usage Guide
+
+### 1. Data Ingestion
+
+**Upload Your Files**
+- Drag & drop CSV or XLSX files
+- Support for Clients, Workers, and Tasks data
+- AI automatically maps columns to correct fields
+
+**AI Column Mapping**
+```
+Original Header: "Employee Name" → Mapped to: "WorkerName"
+Original Header: "Task Duration" → Mapped to: "Duration"
 ```
 
-3. Run the development server:
-```bash
-npm run dev
+### 2. Natural Language Search
+
+**Example Queries**:
+```
+"Find all tasks with duration more than 2 phases"
+"Show me high priority clients"
+"Workers with JavaScript skills"
+"Tasks in phase 2 that require React skills"
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser.
+**Advanced Queries**:
+```
+"Senior workers available in phases 1-3"
+"High priority tasks lasting more than 2 phases"
+"Overloaded workers with more than 5 tasks"
+```
 
----
+### 3. Data Validation
 
-## 📊 **Data Structure**
+**Core Validations**:
+- ✅ Missing required fields
+- ✅ Duplicate IDs detection
+- ✅ Data type validation
+- ✅ Business logic constraints
+- ✅ Skill coverage analysis
+- ✅ Capacity vs demand validation
 
-The application expects three main data entities:
+**AI-Enhanced Validations**:
+- 🤖 Content quality analysis
+- 🤖 Pattern anomaly detection
+- 🤖 Relationship inconsistencies
+- 🤖 Optimization opportunities
 
-### **Clients (clients.csv)**
+### 4. Natural Language Data Modification
+
+**Example Commands**:
+```
+"Set priority of Acme Corp to 5"
+"Add React skill to John Smith"
+"Change duration of Task T1 to 3"
+"Move all frontend tasks to phase 2"
+"Set max load of senior workers to 4"
+```
+
+### 5. AI Rule Generation
+
+**Automatic Suggestions**:
+- Co-run recommendations based on shared skills
+- Load balancing for worker groups
+- Phase optimization suggestions
+- Priority-based scheduling rules
+
+**Natural Language Rules**:
+```
+"Tasks T1 and T2 should always run together"
+"Limit senior workers to maximum 3 tasks per phase"
+"All architecture tasks must complete before development"
+```
+
+### 6. Export & Integration
+
+- Clean, validated CSV/XLSX export
+- Rules configuration JSON
+- Ready for downstream allocation systems
+
+## 🏗️ Architecture
+
+### Tech Stack
+
+- **Frontend**: Next.js 15.3.4, React 19, TypeScript
+- **Styling**: Tailwind CSS, shadcn/ui, Framer Motion
+- **AI**: Google Gemini, Groq, Transformers.js
+- **Data**: PapaParse, XLSX, Zod validation
+- **State**: Context API, React hooks
+
+### AI Service Layer
+
+```typescript
+// Multi-provider AI with automatic fallback
+aiService.processNaturalLanguageQuery()
+aiService.validateDataWithAI()
+aiService.generateRuleSuggestions()
+aiService.processDataModification()
+```
+
+### Component Architecture
+
+```
+├── 📁 components/
+│   ├── DataIngestionTab.tsx    # File upload & AI column mapping
+│   ├── ValidationTab.tsx       # AI validation & search
+│   ├── RulesTab.tsx           # AI rule generation
+│   ├── DataGrid.tsx           # Interactive data tables
+│   └── ui/                    # shadcn/ui components
+├── 📁 lib/
+│   └── ai/
+│       └── ai-service.ts      # Multi-provider AI service
+├── 📁 contexts/
+│   └── DataContext.tsx        # Global state management
+└── 📁 types/                  # TypeScript definitions
+```
+
+## 🔧 Development
+
+### Scripts
+
+```bash
+npm run dev          # Development server
+npm run build        # Production build
+npm run start        # Production server
+npm run lint         # ESLint checking
+```
+
+### Adding New Validations
+
+```typescript
+// Add to ValidationTab.tsx
+const customValidation = (data: any[]) => {
+  // Your validation logic
+  return errors;
+};
+```
+
+### Creating Custom AI Features
+
+```typescript
+// Extend ai-service.ts
+async customAIFeature(input: string) {
+  const response = await this.processWithGemini(input, context);
+  return response;
+}
+```
+
+## 📊 Sample Data
+
+The app includes sample data files in `/public/samples/`:
+- `clients.csv` - Client information and priorities
+- `workers.csv` - Worker skills and availability  
+- `tasks.csv` - Task requirements and constraints
+
+### Data Format Requirements
+
+**Clients**:
 ```csv
 ClientID,ClientName,PriorityLevel,RequestedTaskIDs,GroupTag,AttributesJSON
-C001,TechCorp Solutions,5,"T001,T003,T005",enterprise,"{""budget"": 50000, ""timeline"": ""Q1""}"
+C001,Acme Corp,4,"T001,T002",enterprise,"{""budget"":50000}"
 ```
 
-### **Workers (workers.csv)**
+**Workers**:
 ```csv
 WorkerID,WorkerName,Skills,AvailableSlots,MaxLoadPerPhase,WorkerGroup,QualificationLevel
-W001,Alice Johnson,"javascript,react,typescript","[1,2,3,4]",4,senior,expert
+W001,John Smith,"React,TypeScript","[1,2,3]",3,senior,expert
 ```
 
-### **Tasks (tasks.csv)**
+**Tasks**:
 ```csv
 TaskID,TaskName,Category,Duration,RequiredSkills,PreferredPhases,MaxConcurrent
-T001,Frontend Development,development,2,"javascript,react","[1,2]",3
+T001,Frontend Development,development,2,"React,CSS","[1,2]",2
 ```
 
----
+## 🎯 Use Cases
 
-## 🔧 **Usage Guide**
+### Enterprise Resource Planning
+- Project staffing optimization
+- Skill gap analysis
+- Capacity planning
 
-### **1. Data Ingestion**
-- Upload your CSV or XLSX files for clients, workers, and tasks
-- The AI will automatically map columns even if they have different names
-- View and edit data in the interactive grid
-- Real-time validation provides immediate feedback
+### Consulting Firms
+- Client priority management
+- Resource allocation
+- Project timeline optimization
 
-### **2. Validation**
-- Run comprehensive validations on your data
-- Use natural language search to find specific data
-- Get AI-powered suggestions for fixing errors
-- View detailed error reports with severity levels
+### Software Teams
+- Sprint planning
+- Developer workload balancing
+- Skill-based task assignment
 
-### **3. Rules Configuration**
-- Create business rules using natural language or manual configuration
-- Get AI recommendations for rules based on data patterns
-- Manage active rules with enable/disable functionality
-- Support for various rule types:
-  - Co-run tasks
-  - Load limits
-  - Phase windows
-  - Skill matching
-  - Precedence rules
-
-### **4. Prioritization**
-- Set weights for different allocation criteria
-- Use preset configurations or create custom priorities
-- Visualize priority distribution with charts
-- Real-time updates to priority calculations
-
-### **5. Export**
-- Download cleaned and validated data files
-- Export business rules configuration
-- Get comprehensive validation reports
-- Ready-to-use files for downstream allocation systems
-
----
-
-## 🧠 **AI Features**
-
-### **Natural Language Search**
-Search your data using queries like:
-- "All tasks with duration more than 2 phases"
-- "Workers with javascript skills"
-- "Clients with priority level 5"
-- "Tasks in phase 2"
-
-### **AI Column Mapping**
-The system can handle various column naming conventions:
-- `ClientID`, `ID`, `client_id`, `Client ID`
-- `PriorityLevel`, `Priority`, `priority_level`, `Level`
-- `RequestedTaskIDs`, `Tasks`, `task_ids`, `Requested Tasks`
-
-### **AI Rule Recommendations**
-Get intelligent suggestions for:
-- Co-run rules based on task patterns
-- Load limits based on worker capacity analysis
-- Phase windows based on historical data
-- Skill matching rules
-
----
-
-## 📁 **Project Structure**
-
-```
-src/
-├── app/                 # Next.js app directory
-├── components/          # React components
-│   ├── ui/             # Reusable UI components
-│   ├── DataGrid.tsx    # Interactive data grid
-│   ├── DataIngestionTab.tsx
-│   ├── ValidationTab.tsx
-│   ├── RulesTab.tsx
-│   ├── PrioritizationTab.tsx
-│   └── ExportTab.tsx
-├── contexts/           # React contexts
-│   └── DataContext.tsx # Main data state management
-├── hooks/              # Custom React hooks
-└── lib/                # Utility functions
-```
-
----
-
-## 🎯 **Key Features for Assignment**
-
-### **Milestone 1: Data Ingestion & Validation ✅ COMPLETE**
-- [x] **CSV and XLSX file support** - Full support with robust parsing
-- [x] **AI-powered column mapping** - Intelligent fuzzy matching for various naming conventions
-- [x] **Interactive data grid with inline editing** - Real-time editing capabilities
-- [x] **Comprehensive validation system** - **ALL 12 CORE VALIDATIONS IMPLEMENTED**:
-  1. ✅ Missing required columns/IDs
-  2. ✅ Duplicate IDs (ClientID/WorkerID/TaskID)
-  3. ✅ Malformed lists (AvailableSlots validation)
-  4. ✅ Out-of-range values (PriorityLevel 1-5, Duration ≥ 1)
-  5. ✅ Broken JSON in AttributesJSON
-  6. ✅ Unknown references (RequestedTaskIDs validation)
-  7. ✅ **Circular co-run groups detection** - Advanced cycle detection algorithm
-  8. ✅ **Conflicting rules vs phase-window constraints** - Rule conflict analysis
-  9. ✅ **Overloaded workers calculation** - Capacity vs. load analysis
-  10. ✅ **Phase-slot saturation analysis** - Resource allocation optimization
-  11. ✅ Skill-coverage matrix validation
-  12. ✅ Max-concurrency feasibility checks
-- [x] **Enhanced natural language search** - Advanced pattern matching with 15+ query types
-- [x] **Real-time validation feedback** - Immediate error highlighting and suggestions
-
-### **Milestone 2: Rules & Prioritization ✅ COMPLETE**
-- [x] **Natural language rule creation** - Convert plain English to structured rules
-- [x] **Advanced AI rule recommendations** - Data-driven intelligent suggestions based on:
-  - Task similarity analysis
-  - Worker capacity optimization
-  - Priority-based scheduling
-  - Skill gap identification
-  - Phase load balancing
-  - Dependency analysis
-- [x] **Manual rule builder** - Complete UI for all rule types
-- [x] **Priority weight configuration** - Multiple input methods (sliders, presets, charts)
-- [x] **Preset priority profiles** - 4 built-in optimization strategies
-- [x] **Visual priority charts** - Radar and bar chart representations
-
-### **Milestone 3: Advanced Features ✅ COMPLETE**
-- [x] **AI-powered error correction suggestions** - 7 types of intelligent fixes
-- [x] **Complete natural language data modification** - 8 command types:
-  - Priority adjustments
-  - Skill additions
-  - Duration modifications
-  - Phase reassignments
-  - Worker group changes
-  - Load balancing
-  - Bulk operations
-  - Smart pattern recognition
-- [x] **Advanced validation rules** - Complex business logic validation
-- [x] **Export functionality** - Clean data + comprehensive rule configuration
-- [x] **Mobile-responsive design** - Optimized for all devices
-
----
-
-## 🚀 **Deployment**
-
-The application is ready for deployment on platforms like:
-- Vercel (Current deployment)
-- Netlify
-- AWS Amplify
-- Any static hosting service
-
-Build for production:
-```bash
-npm run build
-npm start
-```
-
----
-
-## 📝 **Sample Data**
-
-Sample data files are included in the `public/samples/` directory:
-- `clients.csv` - Sample client data
-- `workers.csv` - Sample worker data  
-- `tasks.csv` - Sample task data
-
----
-
-## 🤝 **Contributing**
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -281,33 +311,23 @@ Sample data files are included in the `public/samples/` directory:
 4. Add tests if applicable
 5. Submit a pull request
 
----
+## 📝 License
 
-## 📄 **License**
+MIT License - see [LICENSE](LICENSE) file for details.
 
-This project is created for the **Digitalyz Software Engineering Intern** assignment.
+## 🙏 Acknowledgments
 
----
+- [Next.js](https://nextjs.org/) team for the amazing framework
+- [shadcn/ui](https://ui.shadcn.com/) for beautiful components
+- [Transformers.js](https://huggingface.co/docs/transformers.js) for browser-based AI
+- [Google](https://ai.google.dev/) and [Groq](https://groq.com/) for AI APIs
 
-## 🎉 **Demo Features**
+## 📧 Support
 
-### **X-Factor Features**
-1. **AI-Powered Column Mapping**: Automatically handles various column naming conventions
-2. **Natural Language Search**: Search data using plain English queries
-3. **AI Rule Recommendations**: Get intelligent suggestions for business rules
-4. **Real-time Validation**: Immediate feedback on data quality
-5. **Mobile-Responsive Design**: Works seamlessly on all devices
-
-The application demonstrates advanced AI integration, comprehensive data processing capabilities, and a user-friendly interface designed for non-technical users.
+- 📧 Email: [support@example.com](mailto:support@example.com)
+- 💬 Discord: [Join our community](https://discord.gg/example)
+- 📚 Docs: [Full documentation](https://docs.example.com)
 
 ---
 
-<div align="center">
-
-**Built for Digitalyz Software Engineering Intern Assignment**
-
-[![Next.js](https://img.shields.io/badge/Next.js-15.3.4-black?style=flat&logo=next.js)](https://nextjs.org/)
-[![React](https://img.shields.io/badge/React-19.0.0-blue?style=flat&logo=react)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat&logo=typescript)](https://www.typescriptlang.org/)
-
-</div>
+**Made with ❤️ for the Digitalyz assignment - showcasing AI-first development and modern web technologies.**
